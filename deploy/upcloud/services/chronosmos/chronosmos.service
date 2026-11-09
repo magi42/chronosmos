@@ -1,0 +1,24 @@
+[Unit]
+Description=Chronosmos timeline editor
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+User=chronosmos
+Group=chronosmos
+WorkingDirectory=/srv/chronosmos/current
+EnvironmentFile=/etc/chronosmos/chronosmos.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/srv/chronosmos/current/.venv/bin/gunicorn wsgi:app --bind 127.0.0.1:8020 --workers 1 --threads 2 --timeout 45 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/chronosmos
+UMask=0027
+MemoryMax=192M
+
+[Install]
+WantedBy=multi-user.target

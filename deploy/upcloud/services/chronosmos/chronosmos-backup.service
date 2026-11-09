@@ -1,0 +1,8 @@
+[Unit]
+Description=Chronosmos database and media backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/chronosmos-backup
+UMask=0077

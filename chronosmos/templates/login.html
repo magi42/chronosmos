@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block page %}login{% endblock %}
+{% block body %}
+<header class="public-header"><a class="brand" href="/"><span class="brand-mark">C</span>Chronosmos</a><button class="language">FI</button></header>
+<main class="login-wrap"><div class="eyebrow" data-i18n="workspace">EDITOR WORKSPACE</div><h1 data-i18n="signIn">Sign in</h1><p data-i18n="configuredOnly">For configured Chronosmos editors.</p>
+{% if error %}<p class="error" data-i18n="invalidLogin">{{ error }}</p>{% endif %}
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><label><span data-i18n="username">Username</span><input name="username" autocomplete="username" required autofocus maxlength="160"></label><label><span data-i18n="password">Password</span><input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" data-i18n="signIn">Sign in</button></form></main>
+{% endblock %}

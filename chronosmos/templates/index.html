@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block page %}index{% endblock %}
+{% block body %}
+<header class="public-header"><a class="brand" href="/"><span class="brand-mark">C</span>Chronosmos</a><div class="header-right"><span class="eyebrow" data-i18n="atlas">AN ATLAS OF TIME</span><button class="language" aria-label="Change language">FI</button></div></header>
+<main class="library-page">
+  <div class="intro"><div class="eyebrow" data-i18n="perspective">HISTORY, IN PERSPECTIVE</div><h1 data-i18n="introTitle">Every story has a timeline.</h1><p data-i18n="introText">Follow the threads. Discover the connections. Explore time at your own pace.</p></div>
+  <div class="section-label"><span data-i18n="timelines">Timelines</span><span id="timeline-count"></span></div>
+  <div id="gallery" class="gallery" aria-live="polite"><p data-i18n="loading">Loading…</p></div>
+  <footer><span>CHRONOSMOS</span><span data-i18n="footer">A little perspective on the passage of time.</span></footer>
+</main>
+{% endblock %}

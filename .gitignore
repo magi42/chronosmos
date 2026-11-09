@@ -1,0 +1,28 @@
+.venv/
+__pycache__/
+.pytest_cache/
+instance/
+.env
+*.pyc
+*.tar.gz
+node_modules/
+test-results/
+
+# Machine-specific configuration and agent/tool state
+/chronosmos.local.json
+/.agents/
+/.codex/
+/.aws
+.env.*
+!.env.example
+.DS_Store
+
+# Runtime data and private deployment material
+/media/
+/backups/
+*.env
+*.sqlite3
+*.sqlite3-*
+*.db
+*.key
+*.pem
