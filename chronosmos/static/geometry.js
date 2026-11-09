@@ -142,7 +142,14 @@ export function branchRibbon(d, branch, x, horizontalScale = 1) {
     b = barSectionAt(d, to, branch.toYear);
   const ax = x(atYear(branch.fromYear)),
     bx = x(atYear(branch.toYear));
-  const c = ax === bx ? ax + 80 * horizontalScale : (ax + bx) / 2;
+  const startX = x(atYear(d.start)),
+    endX = x(atYear(d.end));
+  const bend = Math.min(
+    80 * horizontalScale,
+    Math.max(16, (endX - startX) / 2),
+  );
+  const c =
+    ax === bx ? ax + (ax > (startX + endX) / 2 ? -bend : bend) : (ax + bx) / 2;
   return {
     path: `M${ax},${a.y} C${c},${a.y} ${c},${b.y} ${bx},${b.y} L${bx},${b.y + b.height} C${c},${b.y + b.height} ${c},${a.y + a.height} ${ax},${a.y + a.height} Z`,
     ax,

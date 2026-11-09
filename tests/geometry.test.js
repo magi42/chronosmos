@@ -119,6 +119,18 @@ test("branches attach to changing-height bars, including reverse and equal-year 
       target.background,
     );
   }
+  const edge = branchRibbon(
+    doc,
+    {
+      fromBarId: "jewish",
+      toBarId: "islam",
+      fromYear: doc.end,
+      toYear: doc.end,
+    },
+    x,
+    4,
+  );
+  assert.ok(edge.path.includes(`C${x(ordinal(doc.end)) - 320},`));
 });
 test("text wrapping uses available measured width and splits long words without discarding text", () => {
   const measure = (text) =>
