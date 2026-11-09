@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
+import { textFor } from "../chronosmos/static/content.js";
 import {
   ordinal,
   historical,
@@ -26,6 +27,59 @@ test("historical years have no gap or year zero", () => {
   for (const y of [-1000, -2, -1, 1, 2, 2026])
     assert.equal(historical(ordinal(y)), y);
   assert.ok(Math.abs(xFor(sample, 1) - xFor(sample, -1) - 0.45) < 1e-10);
+});
+test("translated fields fall back individually to English, including blank and missing translations", () => {
+  const item = {
+    title: "English title",
+    description: "English description",
+    translations: {
+      fi: { title: "Suomenkielinen otsikko", description: "  " },
+      en: { title: "Ignored override" },
+    },
+  };
+  assert.equal(textFor(item, "title"), "English title");
+  assert.equal(textFor(item, "title", "en-US"), "English title");
+  assert.equal(textFor(item, "title", "fi-FI"), "Suomenkielinen otsikko");
+  assert.equal(textFor(item, "description", "fi"), "English description");
+  assert.equal(textFor(item, "title", "sv"), "English title");
+  assert.equal(textFor({}, "text", "fi"), "");
+});
+test("all timeline text renders in the selected language with escaped English fallback", () => {
+  const doc = structuredClone(sample);
+  doc.translations = { fi: { title: "Perinteiden aikajana" } };
+  doc.bars[0].translations = { fi: { label: "Egyptiläiset perinteet" } };
+  doc.overlays[0].translations = {
+    fi: { text: "Teksti <script> & lisäteksti" },
+  };
+  doc.overlays[1].translations = { fi: { text: " " } };
+  doc.events[0].translations = { fi: { label: "Vuosi yksi" } };
+  const fi = parse(renderTimeline(doc, { language: "fi", interactive: true }));
+  assert.equal(fi.querySelector("title").textContent, "Perinteiden aikajana");
+  assert.equal(fi.querySelector("desc").textContent, doc.description);
+  assert.equal(
+    fi.querySelector('[data-id="egypt"] text').textContent,
+    "Egyptiläiset perinteet",
+  );
+  assert.equal(
+    fi.querySelector('[data-id="event1"] text').textContent,
+    "Vuosi yksi",
+  );
+  assert.equal(
+    fi.querySelector('[data-id="event2"] text').textContent,
+    doc.events[1].label,
+  );
+  assert.match(
+    fi.querySelector('[data-id="note1"] text').textContent,
+    /<script>/,
+  );
+  assert.equal(fi.querySelectorAll("script").length, 0);
+  assert.match(
+    fi.querySelector('[data-id="note2"] text').textContent,
+    /Ideas travel/,
+  );
+  const en = parse(renderTimeline(doc));
+  assert.equal(en.querySelector("title").textContent, doc.title);
+  assert.match(en.documentElement.textContent, /Egyptian traditions/);
 });
 test("SVG physical scale is exactly millimeters per historical year", () => {
   const dim = dimensions(sample),

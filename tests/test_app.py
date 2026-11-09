@@ -105,6 +105,14 @@ def test_unpublish_and_delete(client, auth, app):
     lambda d: d['overlays'][0].update(anchorBarId='egypt', offsetY=0),
     lambda d: d['overlays'][0].update(anchorBarId='jewish'),
     lambda d: d['overlays'][0].update(anchorBarId='jewish', offsetY=float('inf')),
+    lambda d: d.update(translations=[]),
+    lambda d: d.update(translations={'en': {'title': 'Override'}}),
+    lambda d: d.update(translations={'fi': {'slug': 'translated-path'}}),
+    lambda d: d.update(translations={'fi': {'title': 'x'*161}}),
+    lambda d: d.update(translations={'fi': {'title': 42}}),
+    lambda d: d['bars'][0].update(translations={'fi': {'label': 'x'*251}}),
+    lambda d: d['overlays'][0].update(translations={'fi': {'text': ['invalid']}}),
+    lambda d: d['events'][0].update(translations={'../fi': {'label': 'invalid'}}),
 ])
 def test_invalid_documents_rejected(client, auth, mutation):
     doc = sample()
@@ -178,6 +186,25 @@ def test_caption_and_overlay_anchors_survive_save_and_publication(client, auth):
     assert draft == doc
     publish(client, auth, ident)
     assert client.get(f'/api/timelines/{ident}').json['document'] == doc
+
+
+def test_content_translations_preserve_english_and_published_snapshot(client, auth):
+    doc = sample()
+    doc['translations'] = {'fi': {'title': 'Perinteiden aikajana', 'description': ''}}
+    doc['bars'][0]['translations'] = {'fi': {'label': 'Egyptiläiset perinteet'}}
+    doc['overlays'][0]['translations'] = {'fi': {'text': 'Uusi luku\n600-luku'}}
+    doc['overlays'][1]['translations'] = {'fi': {'text': 'Ajatukset kulkevat'}}
+    doc['events'][0]['translations'] = {'fi': {'label': 'Vuosi 1'}}
+    ident = create(client, auth, doc)
+    rev = publish(client, auth, ident)
+    assert client.get(f'/api/timelines/{ident}').json['document'] == doc
+    metadata = client.get('/api/timelines').json[0]
+    assert metadata['title'] == doc['title']
+    assert metadata['translations'] == doc['translations']
+    doc['translations']['fi']['title'] = 'Julkaisematon käännös'
+    assert client.put(f'/api/timelines/{ident}', json=dict(document=doc, revision=rev), headers=auth).status_code == 200
+    assert client.get('/api/timelines').json[0]['translations']['fi']['title'] == 'Perinteiden aikajana'
+    assert client.get('/api/timelines?editor=1').json[0]['translations'] == doc['translations']
 
 
 def test_login_rate_limit(client):

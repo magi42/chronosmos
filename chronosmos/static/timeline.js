@@ -1,3 +1,4 @@
+import { textFor } from "./content.js";
 export const UNIT = 0.45,
   PAD = 64;
 export const esc = (value) =>
@@ -99,7 +100,7 @@ export function renderTimeline(
     defs = [];
   const select = (kind, o) =>
     interactive
-      ? ` data-kind="${kind}" data-id="${esc(o.id)}" tabindex="0" role="button" aria-label="${esc(o.label || o.text || o.type || "Element")}"`
+      ? ` data-kind="${kind}" data-id="${esc(o.id)}" tabindex="0" role="button" aria-label="${esc(textFor(o, "label", language) || textFor(o, "text", language) || o.type || "Element")}"`
       : "";
   const outline = (kind, o, xx, yy, w, h) =>
     selected?.kind === kind && selected.id === o.id
@@ -151,7 +152,7 @@ export function renderTimeline(
   }
   function event(e) {
     const xx = x(e.year);
-    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${e.y + e.height}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${e.y + e.height}" stroke="transparent" stroke-width="12"/>` : ""}<text x="${xx + 7}" y="${e.y - 9}" fill="${e.color}" font-size="11">${esc(e.label)}</text>${outline("events", e, xx, e.y, 1, e.height)}</g>`;
+    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${e.y + e.height}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${e.y + e.height}" stroke="transparent" stroke-width="12"/>` : ""}<text x="${xx + 7}" y="${e.y - 9}" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, e.y, 1, e.height)}</g>`;
   }
   let content = `<rect width="${width}" height="${height}" fill="${d.background}"/>`;
   content += d.events
@@ -195,10 +196,14 @@ export function renderTimeline(
     path += ` H${a} Z`;
     const captionYear = b.captionYear ?? b.start;
     const caption = barSectionAt(d, b, captionYear);
-    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(captionYear) + 10}" y="${caption.y + caption.height / 2}" dominant-baseline="central" fill="${b.foreground}" font-size="${Math.min(14, b.height * 0.65)}" clip-path="url(#${clip})">${esc(b.label)}</text>${outline("bars", b, a, b.y, len, b.height)}</g>`;
+    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(captionYear) + 10}" y="${caption.y + caption.height / 2}" dominant-baseline="central" fill="${b.foreground}" font-size="${Math.min(14, b.height * 0.65)}" clip-path="url(#${clip})">${esc(textFor(b, "label", language))}</text>${outline("bars", b, a, b.y, len, b.height)}</g>`;
   }
   for (const stored of d.overlays) {
-    const o = { ...stored, ...overlayPosition(d, stored) };
+    const o = {
+      ...stored,
+      ...overlayPosition(d, stored),
+      text: textFor(stored, "text", language),
+    };
     const xx = x(o.year);
     let body = "";
     if (o.type === "image")
@@ -227,5 +232,5 @@ export function renderTimeline(
   if (d.scale === "top" || d.scale === "both") content += ruler(55, false);
   if (d.scale === "bottom" || d.scale === "both")
     content += ruler(height - 50, true);
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthMm}mm" height="${heightMm}mm" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(d.title)}" font-family="Arial, sans-serif"><title>${esc(d.title)}</title><desc>${esc(d.description)}</desc><defs>${defs.join("")}</defs>${content}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthMm}mm" height="${heightMm}mm" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(textFor(d, "title", language))}" font-family="Arial, sans-serif"><title>${esc(textFor(d, "title", language))}</title><desc>${esc(textFor(d, "description", language))}</desc><defs>${defs.join("")}</defs>${content}</svg>`;
 }

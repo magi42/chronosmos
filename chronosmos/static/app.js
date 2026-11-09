@@ -1,3 +1,4 @@
+import { textFor } from "./content.js";
 import { t, language, translate, toggleLanguage } from "./i18n.js";
 import {
   renderTimeline,
@@ -250,7 +251,7 @@ async function initGallery() {
     ? items
         .map(
           (item, i) =>
-            `<a class="timeline-card" href="/${esc(item.slug)}"><div class="card-art art-${i % 3}"><span class="card-number">${String(i + 1).padStart(2, "0")}</span><div class="art-band band-a"></div><div class="art-band band-b"></div><div class="art-band band-c"></div><div class="art-band band-d"></div><div class="art-line"></div><span class="art-year">${esc(yearLabel(item.start, language))}</span><span class="art-year end">${esc(yearLabel(item.end, language))}</span></div><div class="card-body"><div class="eyebrow">${esc(yearRange(item))} <span>· ${item.bars} ${esc(t("barCount"))}</span></div><h2>${esc(item.title)}</h2><p>${esc(item.description)}</p><span class="card-link">${esc(t("openTimeline"))} <span>↗</span></span></div></a>`,
+            `<a class="timeline-card" href="/${esc(item.slug)}"><div class="card-art art-${i % 3}"><span class="card-number">${String(i + 1).padStart(2, "0")}</span><div class="art-band band-a"></div><div class="art-band band-b"></div><div class="art-band band-c"></div><div class="art-band band-d"></div><div class="art-line"></div><span class="art-year">${esc(yearLabel(item.start, language))}</span><span class="art-year end">${esc(yearLabel(item.end, language))}</span></div><div class="card-body"><div class="eyebrow">${esc(yearRange(item))} <span>· ${item.bars} ${esc(t("barCount"))}</span></div><h2>${esc(textFor(item, "title", language))}</h2><p>${esc(textFor(item, "description", language))}</p><span class="card-link">${esc(t("openTimeline"))} <span>↗</span></span></div></a>`,
         )
         .join("")
     : `<div class="empty-state">${esc(t("noTimelines"))}</div>`;
@@ -258,12 +259,19 @@ async function initGallery() {
 async function initViewer() {
   const data = await api("/api/timelines/" + $("#viewer").dataset.timelineId);
   doc = data.document;
-  $("#viewer-title").textContent = doc.title;
-  document.title = doc.title + " · Chronosmos";
-  $("#viewer-description").textContent = doc.description;
-  $("#viewer-range").textContent = yearRange(doc);
+  renderViewerHeading();
   renderCanvas();
   fit();
+}
+function renderViewerHeading() {
+  if (!doc) return;
+  $("#viewer-title").textContent = textFor(doc, "title", language);
+  document.title = textFor(doc, "title", language) + " · Chronosmos";
+  const description = textFor(doc, "description", language);
+  $("#viewer-description").textContent = description;
+  $("#viewer-description").hidden = !description.trim();
+  $("#viewer-description").title = description;
+  $("#viewer-range").textContent = yearRange(doc);
 }
 async function refreshProjects() {
   projects = await api("/api/timelines?editor=1");
@@ -274,12 +282,15 @@ function renderProjectPicker() {
   picker.innerHTML =
     `<option value="">${esc(t("chooseTimeline"))}</option>` +
     projects
-      .map((p) => `<option value="${p.id}">${esc(p.title)}</option>`)
+      .map(
+        (p) =>
+          `<option value="${p.id}">${esc(textFor(p, "title", language))}</option>`,
+      )
       .join("");
   if (doc && !ident)
     picker.insertAdjacentHTML(
       "beforeend",
-      `<option value="new">${esc(doc.title)} *</option>`,
+      `<option value="new">${esc(textFor(doc, "title", language))} *</option>`,
     );
   picker.value = ident || (doc ? "new" : "");
 }
@@ -310,9 +321,9 @@ async function newProject() {
   if (dirty() && !(await confirmAction(t("leaveQuestion")))) return;
   doc = {
     version: 1,
-    title: t("nameNew"),
+    title: t("nameNew", "en"),
     description: "",
-    slug: t("newPath") + "-" + uid().slice(0, 6),
+    slug: t("newPath", "en") + "-" + uid().slice(0, 6),
     start: -1000,
     end: 2026,
     mmPerYear: 0.35,
@@ -360,7 +371,7 @@ function renderLayers() {
     ? items
         .map(
           (item, i) =>
-            `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-id="${item.id}"><span class="layer-swatch ${tab === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${tab === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(item.label || item.text?.split("\n")[0] || t(item.type) || t("event"))}</strong><small>${tab === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`,
+            `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-id="${item.id}"><span class="layer-swatch ${tab === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${tab === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(textFor(item, "label", language) || textFor(item, "text", language).split("\n")[0] || t(item.type) || t("event"))}</strong><small>${tab === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`,
         )
         .join("")
     : `<p class="subtle empty-layers">${esc(t("noLayers"))}</p>`;
@@ -396,7 +407,24 @@ function field(key, label, type = "text", value = "", options = {}) {
     control = `<textarea id="${id}" data-field="${key}" rows="${options.rows || 3}" maxlength="${options.maxLength || 4000}">${esc(value)}</textarea>`;
   else
     control = `<input id="${id}" data-field="${key}" type="${type}" value="${esc(value)}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${type === "number" ? `step="${options.step || 1}"` : ""} ${type === "text" ? `maxlength="${options.maxLength || 250}"` : ""}>`;
-  return `<label class="field ${type === "color" ? "color-field" : ""}" for="${id}"><span>${esc(t(label))}</span>${control}${options.hint ? `<small>${esc(options.hint)}</small>` : ""}</label>`;
+  const baseLanguage = ["title", "description", "label", "text"].includes(key)
+    ? ` <span class="field-language">${esc(t("englishBase"))}</span>`
+    : "";
+  return `<label class="field ${type === "color" ? "color-field" : ""}" for="${id}"><span>${esc(t(label))}${baseLanguage}</span>${control}${options.hint ? `<small>${esc(options.hint)}</small>` : ""}</label>`;
+}
+function translationFields(target, keys) {
+  const values = target.translations?.fi ?? {};
+  const limits = { title: 160, description: 4000, label: 250, text: 4000 };
+  return `<details class="translation-fields" ${keys.some((k) => values[k]?.trim()) ? "open" : ""}><summary>${esc(t("contentTranslations"))}</summary><p class="field-note">${esc(t("translationHint"))}</p>${keys
+    .map((key) => {
+      const id = "translation-fi-" + key;
+      const attrs = `id="${id}" data-translation-field="${key}" maxlength="${limits[key]}" placeholder="${esc(target[key])}"`;
+      const input = ["text", "description"].includes(key)
+        ? `<textarea ${attrs} rows="3">${esc(values[key] ?? "")}</textarea>`
+        : `<input ${attrs} value="${esc(values[key] ?? "")}">`;
+      return `<label class="field" for="${id}"><span>${esc(t(key))} · ${esc(t("finnish"))}</span>${input}</label>`;
+    })
+    .join("")}</details>`;
 }
 function renderInspector() {
   const el = $("#inspector");
@@ -418,6 +446,7 @@ function renderInspector() {
         hint: t("pathHint").replace("{slug}", doc.slug),
       }) +
       field("description", "description", "textarea", doc.description) +
+      translationFields(doc, ["title", "description"]) +
       `<div class="field-pair">${number("start", "start", doc.start, -100000, 100000)}${number("end", "end", doc.end, -100000, 100000)}</div><p class="field-note">${esc(t("dateHint"))}</p><div class="inspector-divider"></div>` +
       number("mmPerYear", "mmPerYear", doc.mmPerYear, 0.01, 100, 0.01) +
       `<p class="field-note">${esc(t("printHint"))}</p>` +
@@ -429,10 +458,11 @@ function renderInspector() {
       `<div class="inspector-divider"></div>${published ? `<a class="public-link" href="/${esc(publishedSlug)}" target="_blank" rel="noopener">/${esc(publishedSlug)} ↗</a>${button("unpublish", 'id="unpublish" class="danger-text"')}` : ""}${button("deleteTimeline", 'id="delete-timeline" class="danger-text"')}`;
   } else {
     const kind = selected.kind;
-    html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : o.type))}</div><h2>${esc(o.label || o.text?.split("\n")[0] || t(o.type))}</h2>`;
+    html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : o.type))}</div><h2>${esc(textFor(o, "label", language) || textFor(o, "text", language).split("\n")[0] || t(o.type))}</h2>`;
     if (kind === "bars") {
       html +=
         field("label", "label", "text", o.label) +
+        translationFields(o, ["label"]) +
         number(
           "captionYear",
           "captionYear",
@@ -451,7 +481,10 @@ function renderInspector() {
             ["", t("none")],
             ...doc.bars
               .filter((b) => b.id !== o.id)
-              .map((b) => [b.id, b.label || t("timeBar")]),
+              .map((b) => [
+                b.id,
+                textFor(b, "label", language) || t("timeBar"),
+              ]),
           ],
         }) +
         (o.mergeInto
@@ -464,7 +497,10 @@ function renderInspector() {
             )
           : "");
     } else if (kind === "overlays") {
-      if (o.type !== "image") html += field("text", "text", "textarea", o.text);
+      if (o.type !== "image")
+        html +=
+          field("text", "text", "textarea", o.text) +
+          translationFields(o, ["text"]);
       else
         html += `<img class="inspector-image" src="/media/${o.mediaId}.png" alt="${esc(t("selectedMedia"))}">${button("changeImage", 'id="change-image"')}`;
       const anchor = doc.bars.find((b) => b.id === o.anchorBarId);
@@ -472,7 +508,10 @@ function renderInspector() {
         field("anchorBarId", "anchorBar", "select", o.anchorBarId ?? "", {
           choices: [
             ["", t("freePosition")],
-            ...doc.bars.map((b) => [b.id, b.label || t("timeBar")]),
+            ...doc.bars.map((b) => [
+              b.id,
+              textFor(b, "label", language) || t("timeBar"),
+            ]),
           ],
           hint: t("anchorHint"),
         }) +
@@ -495,6 +534,7 @@ function renderInspector() {
     } else
       html +=
         field("label", "label", "text", o.label) +
+        translationFields(o, ["label"]) +
         number("year", "year", o.year, -100000, 100000) +
         number("y", "y", o.y, 0, doc.height) +
         number("height", "height", o.height, 1, doc.height) +
@@ -509,6 +549,28 @@ function renderInspector() {
     html += `<div class="inspector-divider"></div><div class="element-actions">${button("duplicate", 'id="duplicate"')}${button("delete", 'id="delete-element" class="danger-text"')}</div>`;
   }
   el.innerHTML = html;
+  el.querySelectorAll("[data-translation-field]").forEach(
+    (input) =>
+      (input.onchange = () => {
+        if (!input.reportValidity()) return;
+        const target = o || doc,
+          key = input.dataset.translationField,
+          value = input.value;
+        change(() => {
+          if (value.trim()) {
+            target.translations ??= {};
+            target.translations.fi ??= {};
+            target.translations.fi[key] = value;
+          } else if (target.translations?.fi) {
+            delete target.translations.fi[key];
+            if (!Object.keys(target.translations.fi).length)
+              delete target.translations.fi;
+            if (!Object.keys(target.translations).length)
+              delete target.translations;
+          }
+        });
+      }),
+  );
   el.querySelectorAll("[data-field]").forEach(
     (input) =>
       (input.onchange = () => {
@@ -635,7 +697,7 @@ function addElement(type, media = null) {
     if (type === "bar") {
       o = {
         id: uid(),
-        label: t("labelNew"),
+        label: t("labelNew", "en"),
         start,
         end: doc.end,
         y: Math.min(doc.height - 100, 130 + doc.bars.length * 60),
@@ -653,7 +715,7 @@ function addElement(type, media = null) {
     } else if (type === "event") {
       o = {
         id: uid(),
-        label: t("eventNew"),
+        label: t("eventNew", "en"),
         year: start,
         y: 90,
         height: Math.max(1, doc.height - 180),
@@ -670,7 +732,7 @@ function addElement(type, media = null) {
         y: Math.min(doc.height - 80, 200),
         width: 200,
         height: 80,
-        text: type === "image" ? "" : t("noteNew"),
+        text: type === "image" ? "" : t("noteNew", "en"),
         color: "#4a4e43",
         fill: "#eee9dc",
         fontSize: 14,
@@ -1103,7 +1165,7 @@ window.addEventListener(
       $("#preview").textContent = t(preview ? "closePreview" : "preview");
     } else if (page === "index") await initGallery();
     else if (page === "viewer") {
-      $("#viewer-range").textContent = yearRange(doc);
+      renderViewerHeading();
       renderCanvas();
     }
   }),

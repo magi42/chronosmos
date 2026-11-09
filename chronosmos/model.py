@@ -34,8 +34,21 @@ def validate(doc):
         if not re.fullmatch(r'#[0-9a-fA-F]{6}', str(obj.get(key, ''))):
             raise ValueError(f'Invalid {key} color.')
 
+    def translations(obj, fields):
+        values = obj.get('translations', {})
+        if not isinstance(values, dict) or len(values) > 20:
+            raise ValueError('Invalid translations.')
+        for language, content in values.items():
+            if not isinstance(language, str) or not re.fullmatch(r'[a-z]{2,3}(?:-[a-z0-9]{2,8})*', language) or language.split('-')[0] == 'en':
+                raise ValueError('Translation language must be a language code other than English; English uses the base fields.')
+            if not isinstance(content, dict) or any(key not in fields for key in content):
+                raise ValueError('Invalid translated fields.')
+            for key in content:
+                text(content, key, fields[key], False)
+
     text(doc, 'title', 160)
     text(doc, 'description', 4000, False)
+    translations(doc, {'title': 160, 'description': 4000})
     slug = text(doc, 'slug', 160)
     if not re.fullmatch(r'[a-z0-9]+(?:[/-][a-z0-9]+)*', slug) or slug.split('/')[0] in {'api', 'manage', 'static', 'media', 'healthz', 'assets'}:
         raise ValueError('Use a unique path with lowercase letters, numbers, hyphens and optional slashes.')
@@ -61,6 +74,7 @@ def validate(doc):
     bar_ids = {b['id']: b for b in bars}
     for b in bars:
         text(b, 'label', 250, False)
+        translations(b, {'label': 250})
         a, z = year(b, 'start'), year(b, 'end')
         if ordinal(z) <= ordinal(a):
             raise ValueError('A bar must end after it starts.')
@@ -108,6 +122,7 @@ def validate(doc):
         num(o, 'width', 10, 2000)
         num(o, 'height', 10, 2000)
         text(o, 'text', 4000, False)
+        translations(o, {'text': 4000})
         color(o, 'color')
         color(o, 'fill')
         num(o, 'fontSize', 6, 120)
@@ -116,6 +131,7 @@ def validate(doc):
     for e in events:
         year(e, 'year')
         text(e, 'label', 250, False)
+        translations(e, {'label': 250})
         num(e, 'y', 0, doc['height'])
         num(e, 'height', 1, doc['height'])
         num(e, 'width', .25, 20)

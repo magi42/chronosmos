@@ -129,7 +129,8 @@ def create_app(config=None):
         return dict(id=row['id'], title=doc['title'], description=doc['description'],
                     slug=doc['slug'], start=doc['start'], end=doc['end'],
                     bars=len(doc['bars']), revision=row['revision'], updated=row['updated'],
-                    published=bool(row['published']), publishedSlug=row['published_slug'])
+                    published=bool(row['published']), publishedSlug=row['published_slug'],
+                    translations=doc.get('translations', {}))
 
     @app.get('/healthz')
     def health():

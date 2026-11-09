@@ -158,6 +158,11 @@ käyttäjät, julkiset polut ja kuvat.
 
 ## Sovellusjulkaisun palautus
 
+Aikajanamuodon 1 valinnainen `translations` sisältää kielikohtaiset tekstikentät.
+Tavalliset title/description/label/text-kentät ovat englanninkielinen perusta.
+Puuttuva tai tyhjä käännös näyttää peruskentän. Laajennus ei muuta tietokantaskeemaa;
+vanhat julkaisut näyttävät vain peruskentät ja ohittavat käännökset.
+
 Aikajanamuodon 1 valinnaiset `captionYear`- sekä `anchorBarId`/`offsetY`-kentät
 mahdollistavat otsikon siirron ja grafiikan kiinnityksen palkkiin. Uusi julkaisu
 lukee vanhat aikajanat ilman tietomigraatiota. Näitä kenttiä edeltävä julkaisu

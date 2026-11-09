@@ -10,6 +10,10 @@
   and `offsetY` bind graphics to a year on a bar; preserve the absolute `y` fallback.
   Whole-bar moves shift anchor years and captions using historical ordinals;
   detaching or deleting the parent bar preserves the overlay's displayed position.
+- Plain title/description/label/text fields are the English base. Optional
+  `translations[language][field]` supplies authored translations; missing or blank
+  values fall back to English per field. Use the shared content lookup in headers,
+  library cards, canvas labels, accessibility text, previews and exports.
 - Editor access is provisioned server-side through the CLI. Do not add public
   registration, default credentials, or a public login link without a user request.
 - Saving a draft must not change a published composition or its public path.

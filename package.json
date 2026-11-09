@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "test": "node tests/render.test.js && node tests/i18n.test.js && node tests/editor.test.js"
+    "test": "node tests/render.test.js && node tests/i18n.test.js && node tests/editor.test.js && node tests/viewer.test.js"
   },
   "devDependencies": {
     "jsdom": "26.1.0",

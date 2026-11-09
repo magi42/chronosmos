@@ -836,37 +836,55 @@ input[type="color"] {
   color: var(--green);
 }
 #viewer {
-  padding: 50px 5% 25px;
+  padding: 10px 5% 18px;
 }
-.viewer-intro {
-  max-width: 840px;
+.viewer-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 28px;
+  height: auto;
+  min-height: 88px;
+  padding: 12px 0;
+}
+.viewer-heading {
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
 }
 .back-link {
   font-size: 11px;
   color: #8b927f;
 }
-.viewer-intro h1 {
-  font-size: 46px;
-  letter-spacing: -1px;
-  margin: 23px 0 15px;
+.viewer-heading h1 {
+  font-size: 27px;
+  letter-spacing: -0.5px;
+  margin: 3px 0;
+  overflow-wrap: anywhere;
 }
-.viewer-intro p {
+.viewer-heading p {
   color: #8a8f7d;
-  font-size: 13px;
-  line-height: 1.8;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.viewer-heading p[hidden] {
+  display: none;
 }
 .viewer-tools {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid var(--line);
-  margin-top: 35px;
-  padding: 15px 0;
+  margin-top: 0;
+  padding: 10px 0;
 }
 .public-canvas {
   border: 1px solid var(--line);
   border-radius: 6px;
-  height: 65vh;
+  height: calc(100dvh - 210px);
   min-height: 390px;
   background-color: #eeeee6;
 }
@@ -877,7 +895,30 @@ input[type="color"] {
 .viewer-hint {
   font-size: 10px;
   color: #999e8a;
-  margin-top: 17px;
+  margin: 10px 0 0;
+}
+.field-language {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 9px;
+}
+.translation-fields {
+  margin: 0 0 20px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #f0f2e9;
+}
+.translation-fields summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--green);
+}
+.translation-fields[open] summary {
+  margin-bottom: 10px;
+}
+.translation-fields .field:last-child {
+  margin-bottom: 0;
 }
 dialog {
   border: 1px solid #dedfd4;
@@ -1279,14 +1320,41 @@ dialog .dialog-close {
   .preview .workbench {
     flex: 1;
   }
-  .viewer-intro h1 {
-    font-size: 35px;
+  .viewer-header {
+    gap: 12px;
+    min-height: 78px;
+    height: auto;
+  }
+  .viewer-header .brand {
+    font-size: 0;
+    gap: 0;
+  }
+  .viewer-header .header-right {
+    gap: 7px;
+  }
+  .viewer-header .header-right button {
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+  .viewer-heading {
+    border: 0;
+    padding: 0;
+  }
+  .viewer-heading h1 {
+    font-size: 22px;
+  }
+  .viewer-heading p {
+    font-size: 10px;
+  }
+  .viewer-heading .back-link {
+    font-size: 9px;
   }
   .public-canvas {
+    height: calc(100dvh - 240px);
     min-height: 300px;
   }
   #viewer {
-    padding-top: 30px;
+    padding-top: 6px;
   }
   .viewer-hint {
     font-size: 9px;

@@ -235,6 +235,28 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   assert.equal($("#field-label").value, "New time bar");
   await click("#redo");
   assert.equal($("#field-label").value, "An edited bar");
+  const setTranslation = (key, value) => {
+    const input = $("#translation-fi-" + key);
+    assert.ok(input);
+    input.value = value;
+    input.onchange();
+  };
+  setTranslation("label", "Muokattu aikapalkki");
+  assert.equal($("#field-label").value, "An edited bar");
+  await click(".language");
+  assert.equal($("#inspector h2").textContent, "Muokattu aikapalkki");
+  assert.equal($("#field-label").value, "An edited bar");
+  setTranslation("label", " ");
+  assert.equal($("#inspector h2").textContent, "An edited bar");
+  await click("#undo");
+  assert.equal($("#inspector h2").textContent, "Muokattu aikapalkki");
+  await click(".language");
+  await click("#save");
+  assert.equal(serverDoc.bars.at(-1).label, "An edited bar");
+  assert.equal(
+    serverDoc.bars.at(-1).translations.fi.label,
+    "Muokattu aikapalkki",
+  );
   await click("#preview");
   assert.ok(document.body.classList.contains("preview"));
   assert.equal($("#canvas [data-id]"), null);
@@ -283,5 +305,10 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
     parseFloat(exportedSvg.getAttribute("height")),
     dimensions(sample).heightMm,
   );
+  assert.match(svg, /Muokattu aikapalkki/);
+  await click("[data-close]");
+  await click('[data-tab="overlays"]');
+  await click('[data-add="text"]');
+  assert.equal($("#field-text").value, "Your story here");
   dom.window.close();
 });

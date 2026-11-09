@@ -68,10 +68,18 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   remains reserved until then. Conflicting saves from other sessions are rejected
   instead of overwriting data. Download JSON before reloading after a conflict.
 
-The interface supports English and Finnish. On first visit, Finnish is selected
-when it is among the browser's preferred languages; otherwise English is used.
-The language button stores an explicit preference in the browser. Authored content
-is preserved in its original language.
+The interface supports English and Finnish, selected from the browser's first
+supported language preference. The language button stores an explicit preference.
+The public timeline title, description and back navigation share a compact page
+header so the timeline has more room.
+
+English is the base language for authored content. In Properties, open
+**Translations** to add Finnish versions of the title, description, bar captions,
+text and boxes, or event labels. Leave a translation blank to show its English
+base. Use the language button to preview the chosen language. The same per-field
+fallback applies in the library, public viewer, editor preview and SVG/PNG/PDF
+exports. JSON exports preserve the English fields and all translations together.
+Existing timelines keep their current base text until edited.
 
 ## Dates and exports
 

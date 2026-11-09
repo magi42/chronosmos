@@ -1,5 +1,10 @@
 export const translations = {
   en: {
+    contentTranslations: "Translations",
+    englishBase: "English (base)",
+    finnish: "Finnish",
+    translationHint:
+      "English is the base. Leave Finnish blank to use English. Use the language button to preview.",
     atlas: "AN ATLAS OF TIME",
     perspective: "HISTORY, IN PERSPECTIVE",
     introTitle: "Every story has a timeline.",
@@ -171,6 +176,11 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    contentTranslations: "Käännökset",
+    englishBase: "Englanti (peruskieli)",
+    finnish: "Suomi",
+    translationHint:
+      "Englanti on peruskieli. Tyhjä suomennos näyttää englanninkielisen tekstin. Esikatsele kielipainikkeella.",
     atlas: "AJAN KARTASTO",
     perspective: "HISTORIAA PERSPEKTIIVISSÄ",
     introTitle: "Jokaisella tarinalla on aikajanansa.",
@@ -352,8 +362,8 @@ export let language =
   localStorage.getItem("chronosmos-language") ||
   detectLanguage(navigator.languages || [navigator.language]);
 if (!translations[language]) language = "en";
-export const t = (key) =>
-  translations[language][key] ?? translations.en[key] ?? key;
+export const t = (key, locale = language) =>
+  translations[locale]?.[key] ?? translations.en[key] ?? key;
 export function translate() {
   document.documentElement.lang = language;
   document
