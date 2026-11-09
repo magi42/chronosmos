@@ -1,4 +1,6 @@
 import { textFor } from "./content.js";
+import { validHeightPeriods, heightAt } from "./geometry.js";
+import { wireViewing } from "./viewing.js";
 import { t, language, translate, toggleLanguage } from "./i18n.js";
 import {
   renderTimeline,
@@ -119,6 +121,21 @@ function normalizeAttachments() {
       );
     }
   }
+  for (const branch of doc.branches ?? []) {
+    const from = doc.bars.find((b) => b.id === branch.fromBarId),
+      to = doc.bars.find((b) => b.id === branch.toBarId);
+    if (from) branch.fromYear = clampYearToBar(from, branch.fromYear);
+    if (to) branch.toYear = clampYearToBar(to, branch.toYear);
+  }
+}
+function branchLabel(branch) {
+  const name = (id) =>
+    textFor(
+      doc.bars.find((b) => b.id === id),
+      "label",
+      language,
+    ) || t("timeBar");
+  return name(branch.fromBarId) + " → " + name(branch.toBarId);
 }
 function updateStatus() {
   if (page !== "editor") return;
@@ -184,6 +201,7 @@ function renderCanvas() {
     selected: page === "editor" && !preview ? selected : null,
     language,
     interactive: page === "editor" && !preview,
+    viewing: page === "viewer" || preview,
     horizontalScale: zoom,
   });
   resizeCanvas();
@@ -357,7 +375,10 @@ function renderEditor() {
   renderProjectPicker();
   $("#empty-canvas").hidden = !!doc;
   $("#element-count").textContent = doc
-    ? doc.bars.length + doc.overlays.length + doc.events.length
+    ? doc.bars.length +
+      doc.overlays.length +
+      doc.events.length +
+      (doc.branches?.length ?? 0)
     : "";
   $("#canvas-range").textContent = doc ? yearRange(doc) : "";
   renderCanvas();
@@ -375,7 +396,7 @@ function renderLayers() {
     ? items
         .map(
           (item, i) =>
-            `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-id="${item.id}"><span class="layer-swatch ${tab === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${tab === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(textFor(item, "label", language) || textFor(item, "text", language).split("\n")[0] || t(item.type) || t("event"))}</strong><small>${tab === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`,
+            `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-id="${item.id}"><span class="layer-swatch ${tab === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${tab === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(tab === "branches" ? branchLabel(item) : textFor(item, "label", language) || textFor(item, "text", language).split("\n")[0] || t(item.type) || t("event"))}</strong><small>${tab === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : tab === "branches" ? esc(yearLabel(item.fromYear, language) + " → " + yearLabel(item.toYear, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`,
         )
         .join("")
     : `<p class="subtle empty-layers">${esc(t("noLayers"))}</p>`;
@@ -392,9 +413,11 @@ function renderLayers() {
       ? button("addBar", 'data-add="bar" class="add-layer"')
       : tab === "events"
         ? button("addEvent", 'data-add="event" class="add-layer"')
-        : button("addText", 'data-add="text"') +
-          button("addBox", 'data-add="box"') +
-          button("addImage", 'data-add="image"');
+        : tab === "branches"
+          ? button("addBranch", 'data-add="branch" class="add-layer"')
+          : button("addText", 'data-add="text"') +
+            button("addBox", 'data-add="box"') +
+            button("addImage", 'data-add="image"');
   $$("[data-add]").forEach(
     (b) =>
       (b.onclick = action(() =>
@@ -427,6 +450,79 @@ function field(key, label, type = "text", value = "", options = {}) {
   }
   return `<label class="field ${type === "color" ? "color-field" : ""}" for="${id}"><span>${esc(t(label))}</span>${control}${options.hint ? `<small>${esc(options.hint)}</small>` : ""}</label>`;
 }
+function heightPeriodFields(bar) {
+  return `<section class="height-periods"><h3>${esc(t("heightChanges"))}</h3>${(bar.heightPeriods ?? []).map((p) => `<div class="height-period" data-height-period="${p.id}"><div class="field-pair"><label class="field"><span>${esc(t("start"))}</span><input type="number" data-period-field="start" value="${p.start}" min="${bar.start}" max="${bar.end}" step="1"></label><label class="field"><span>${esc(t("end"))}</span><input type="number" data-period-field="end" value="${p.end}" min="${bar.start}" max="${bar.end}" step="1"></label></div><label class="field"><span>${esc(t("targetHeight"))}</span><input type="number" data-period-field="height" value="${p.height}" min="4" max="160" step="1"></label><button class="danger-text" data-remove-period="${p.id}">${esc(t("removePeriod"))}</button></div>`).join("")}<button id="add-height-period">${esc(t("addHeightPeriod"))}</button><p class="field-note">${esc(t("heightPeriodHint"))}</p></section>`;
+}
+function wireHeightPeriods(el, bar) {
+  if (!bar || selected?.kind !== "bars") return;
+  el.querySelectorAll("[data-period-field]").forEach(
+    (input) =>
+      (input.onchange = () => {
+        if (!input.reportValidity()) return;
+        const id = input.closest("[data-height-period]").dataset.heightPeriod;
+        const periods = structuredClone(bar.heightPeriods ?? []);
+        const period = periods.find((p) => p.id === id);
+        period[input.dataset.periodField] = Number(input.value);
+        if (!validHeightPeriods(bar, periods)) {
+          toast(t("invalidHeightPeriods"), true);
+          renderInspector();
+          return;
+        }
+        change(
+          () =>
+            (bar.heightPeriods = periods.sort(
+              (a, b) => ordinal(a.start) - ordinal(b.start),
+            )),
+        );
+      }),
+  );
+  el.querySelectorAll("[data-remove-period]").forEach(
+    (button) =>
+      (button.onclick = () =>
+        change(
+          () =>
+            (bar.heightPeriods = bar.heightPeriods.filter(
+              (p) => p.id !== button.dataset.removePeriod,
+            )),
+        )),
+  );
+  $("#add-height-period").onclick = () => {
+    if ((bar.heightPeriods?.length ?? 0) >= 50) {
+      toast(t("invalidHeightPeriods"), true);
+      return;
+    }
+    const sorted = [...(bar.heightPeriods ?? [])].sort(
+      (a, b) => ordinal(a.start) - ordinal(b.start),
+    );
+    const gaps = [];
+    let cursor = ordinal(bar.start);
+    for (const p of sorted) {
+      if (ordinal(p.start) > cursor) gaps.push([cursor, ordinal(p.start)]);
+      cursor = ordinal(p.end);
+    }
+    if (ordinal(bar.end) > cursor) gaps.push([cursor, ordinal(bar.end)]);
+    const gap = gaps.sort((a, b) => b[1] - b[0] - (a[1] - a[0]))[0];
+    if (!gap) {
+      toast(t("invalidHeightPeriods"), true);
+      return;
+    }
+    const start = gap[0] + Math.floor((gap[1] - gap[0]) * 0.4),
+      end = Math.min(
+        gap[1],
+        start + Math.max(1, Math.floor((gap[1] - gap[0]) * 0.15)),
+      );
+    change(() => {
+      bar.heightPeriods ??= [];
+      bar.heightPeriods.push({
+        id: uid(),
+        start: historical(start),
+        end: historical(end),
+        height: Math.min(160, heightAt(bar, start).height + 12),
+      });
+      bar.heightPeriods.sort((a, b) => ordinal(a.start) - ordinal(b.start));
+    });
+  };
+}
 function renderInspector() {
   const el = $("#inspector");
   if (!doc) {
@@ -458,7 +554,7 @@ function renderInspector() {
       `<div class="inspector-divider"></div>${published ? `<a class="public-link" href="/${esc(publishedSlug)}" target="_blank" rel="noopener">/${esc(publishedSlug)} ↗</a>${button("unpublish", 'id="unpublish" class="danger-text"')}` : ""}${button("deleteTimeline", 'id="delete-timeline" class="danger-text"')}`;
   } else {
     const kind = selected.kind;
-    html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : o.type))}</div><h2>${esc(textFor(o, "label", language) || textFor(o, "text", language).split("\n")[0] || t(o.type))}</h2>`;
+    html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : kind === "branches" ? "branch" : o.type))}</div><h2>${esc(kind === "branches" ? branchLabel(o) : textFor(o, "label", language) || textFor(o, "text", language).split("\n")[0] || t(o.type))}</h2>`;
     if (kind === "bars") {
       html +=
         field("label", "label", "text", o.label) +
@@ -471,7 +567,8 @@ function renderInspector() {
         ) +
         `<div class="field-pair">${number("start", "start", o.start, -100000, 100000)}${number("end", "end", o.end, -100000, 100000)}</div><p class="field-note">${esc(t("dateHint"))}</p>` +
         number("y", "y", o.y, 60, doc.height - 60) +
-        number("height", "height", o.height, 4, 160) +
+        number("height", "initialHeight", o.height, 4, 160) +
+        heightPeriodFields(o) +
         `<div class="field-pair">${color("background", "background", o.background)}${color("foreground", "foreground", o.foreground)}</div><div class="inspector-divider"></div>` +
         number("fadeIn", "fadeIn", o.fadeIn, 0, 100000) +
         number("fadeOut", "fadeOut", o.fadeOut, 0, 100000) +
@@ -527,6 +624,22 @@ function renderInspector() {
           number("fontSize", "fontSize", o.fontSize, 6, 120) +
           color("color", "color", o.color);
       if (o.type === "box") html += color("fill", "fill", o.fill);
+    } else if (kind === "branches") {
+      const from = doc.bars.find((b) => b.id === o.fromBarId),
+        to = doc.bars.find((b) => b.id === o.toBarId);
+      const choices = (except) =>
+        doc.bars
+          .filter((b) => b.id !== except)
+          .map((b) => [b.id, textFor(b, "label", language) || t("timeBar")]);
+      html +=
+        field("fromBarId", "fromBar", "select", o.fromBarId, {
+          choices: choices(o.toBarId),
+        }) +
+        number("fromYear", "fromYear", o.fromYear, from.start, from.end) +
+        field("toBarId", "toBar", "select", o.toBarId, {
+          choices: choices(o.fromBarId),
+        }) +
+        number("toYear", "toYear", o.toYear, to.start, to.end);
     } else
       html +=
         field("label", "label", "text", o.label) +
@@ -544,6 +657,7 @@ function renderInspector() {
     html += `<div class="inspector-divider"></div><div class="element-actions">${button("duplicate", 'id="duplicate"')}${button("delete", 'id="delete-element" class="danger-text"')}</div>`;
   }
   el.innerHTML = html;
+  wireHeightPeriods(el, o);
   const commitContent = (input) => {
     if (!input.reportValidity()) return;
     const target = o || doc,
@@ -599,7 +713,14 @@ function renderInspector() {
           return;
         }
         if (
-          ["start", "end", "year", "captionYear"].includes(key) &&
+          [
+            "start",
+            "end",
+            "year",
+            "captionYear",
+            "fromYear",
+            "toYear",
+          ].includes(key) &&
           value === 0
         ) {
           toast(t("noYearZero"), true);
@@ -612,6 +733,15 @@ function renderInspector() {
           ordinal(candidate.start) >= ordinal(candidate.end)
         ) {
           toast("End year must be after start year.", true);
+          input.value = target[key];
+          return;
+        }
+        if (
+          selected?.kind === "bars" &&
+          ["start", "end"].includes(key) &&
+          !validHeightPeriods(candidate, candidate.heightPeriods ?? [])
+        ) {
+          toast(t("invalidHeightPeriods"), true);
           input.value = target[key];
           return;
         }
@@ -645,7 +775,7 @@ function renderInspector() {
       change(() => {
         const clone = structuredClone(o);
         clone.id = uid();
-        clone.y = Math.min(doc.height - 60, clone.y + 42);
+        if ("y" in clone) clone.y = Math.min(doc.height - 60, clone.y + 42);
         if (clone.anchorBarId)
           clone.offsetY = Math.min(4000, (clone.offsetY ?? 0) + 42);
         doc[selected.kind].push(clone);
@@ -656,6 +786,9 @@ function renderInspector() {
       change(() => {
         const id = o.id;
         if (selected.kind === "bars") {
+          doc.branches = (doc.branches ?? []).filter(
+            (branch) => branch.fromBarId !== id && branch.toBarId !== id,
+          );
           for (const overlay of doc.overlays.filter(
             (overlay) => overlay.anchorBarId === id,
           )) {
@@ -710,11 +843,33 @@ function renderInspector() {
 }
 function addElement(type, media = null) {
   if (!doc) return;
+  if (type === "branch" && doc.bars.length < 2) {
+    toast(t("needTwoBars"), true);
+    return;
+  }
   change(() => {
     let o;
     const span = ordinal(doc.end) - ordinal(doc.start),
       start = historical(ordinal(doc.start) + Math.floor(span * 0.15));
-    if (type === "bar") {
+    if (type === "branch") {
+      const from = doc.bars[0],
+        to = doc.bars[1];
+      const year = historical(
+        Math.floor((ordinal(from.start) + ordinal(from.end)) / 2),
+      );
+      o = {
+        id: uid(),
+        fromBarId: from.id,
+        toBarId: to.id,
+        fromYear: year,
+        toYear: clampYearToBar(
+          to,
+          historical(Math.min(99999, ordinal(year) + 100)),
+        ),
+      };
+      tab = "branches";
+      doc.branches ??= [];
+    } else if (type === "bar") {
       o = {
         id: uid(),
         label: t("labelNew", "en"),
@@ -815,6 +970,10 @@ function wireDragging() {
     const kind = g.dataset.kind,
       id = g.dataset.id;
     selected = { kind, id };
+    if (kind === "branches") {
+      renderEditor();
+      return;
+    }
     const object = selectedItem();
     drag = {
       id,
@@ -830,6 +989,9 @@ function wireDragging() {
               .filter((o) => o.anchorBarId === id)
               .map((o) => ({ id: o.id, year: o.year }))
           : [],
+      branchEndpoints: (doc.branches ?? [])
+        .filter((b) => b.fromBarId === id || b.toBarId === id)
+        .map((b) => structuredClone(b)),
       moved: false,
     };
     $("#canvas").setPointerCapture(e.pointerId);
@@ -846,8 +1008,13 @@ function wireDragging() {
       return;
     drag.moved = true;
     const o = selectedItem(),
-      b = drag.object,
-      offset = Math.round(dx / UNIT);
+      b = drag.object;
+    if (drag.kind === "bars" && !drag.caption && e.shiftKey)
+      drag.timeOffset = Math.round(dx / UNIT);
+    const offset =
+      drag.kind === "bars" && !drag.caption
+        ? (drag.timeOffset ?? 0)
+        : Math.round(dx / UNIT);
     if (drag.caption) {
       const candidate = Math.max(
         -100000,
@@ -875,10 +1042,23 @@ function wireDragging() {
       const delta = a - ordinal(b.start);
       if (b.captionYear !== undefined)
         o.captionYear = historical(ordinal(b.captionYear) + delta);
+      if (b.heightPeriods)
+        o.heightPeriods = b.heightPeriods.map((p) => ({
+          ...p,
+          start: historical(ordinal(p.start) + delta),
+          end: historical(ordinal(p.end) + delta),
+        }));
       for (const anchor of drag.anchors) {
         doc.overlays.find((o) => o.id === anchor.id).year = historical(
           ordinal(anchor.year) + delta,
         );
+      }
+      for (const endpoint of drag.branchEndpoints) {
+        const branch = doc.branches.find((b) => b.id === endpoint.id);
+        if (endpoint.fromBarId === o.id)
+          branch.fromYear = historical(ordinal(endpoint.fromYear) + delta);
+        if (endpoint.toBarId === o.id)
+          branch.toYear = historical(ordinal(endpoint.toYear) + delta);
       }
     } else {
       o.year = historical(
@@ -1180,6 +1360,13 @@ async function initEditor() {
 translate();
 $$(".language").forEach((e) => (e.onclick = toggleLanguage));
 wireZoom();
+if ($("#canvas-viewport"))
+  wireViewing($("#canvas-viewport"), {
+    isViewing: () => page === "viewer" || preview,
+    getDocument: () => doc,
+    getLanguage: () => language,
+    translate: t,
+  });
 if ($("#export-open")) $("#export-open").onclick = openExport;
 window.addEventListener(
   "languagechange",

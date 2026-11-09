@@ -158,6 +158,11 @@ käyttäjät, julkiset polut ja kuvat.
 
 ## Sovellusjulkaisun palautus
 
+Muodon 1 valinnaiset `heightPeriods` ja `branches` tallentavat palkkien paksuusjaksot
+ja erilliset, vuosikohtaiset haarayhteydet. Skeema ei muutu. Vanha sovellusjulkaisu
+ohittaa nämä tiedot; kun niitä on tallennettu, käytä niitä tukevaa julkaisua myös
+palautuksessa. Varmista kanta ja media yhdessä tavalliseen tapaan.
+
 Aikajanamuodon 1 valinnainen `translations` sisältää kielikohtaiset tekstikentät.
 Tavalliset title/description/label/text-kentät ovat englanninkielinen perusta.
 Puuttuva tai tyhjä käännös näyttää peruskentän. Laajennus ei muuta tietokantaskeemaa;

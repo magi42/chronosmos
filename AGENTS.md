@@ -6,6 +6,13 @@
   Preserve actual SVG millimeter dimensions and embedded export illustrations.
 - Timeline zoom changes only the horizontal time scale. Keep vertical positions,
   bar heights, text sizes and illustration proportions fixed, including while dragging.
+- Bar dragging changes only vertical position unless Shift is held. Horizontal
+  moves must shift captions, anchors, height periods and connected branch endpoints.
+- Optional `heightPeriods` change bar thickness smoothly between start/end years;
+  targets persist and periods cannot overlap. Optional `branches` connect two
+  different bars at independent years. Share their geometry with anchors and exports.
+- Viewer and Preview support drag-to-pan and click-to-enlarge overlays. Suppress
+  enlargement after a pan gesture; a subsequent click anywhere closes the detail.
 - Optional `captionYear` positions bar captions. Overlay `anchorBarId`, `year`
   and `offsetY` bind graphics to a year on a bar; preserve the absolute `y` fallback.
   Whole-bar moves shift anchor years and captions using historical ordinals;

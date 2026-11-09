@@ -505,7 +505,7 @@ input[type="color"] {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   font-size: 11px;
-  padding: 9px 9px;
+  padding: 9px 5px;
   color: #8c8e80;
   flex: 1;
 }
@@ -675,7 +675,19 @@ input[type="color"] {
   background-size: 16px 16px;
   padding: 40px 32px 60px;
   scrollbar-color: #c6cbbb transparent;
-  scrollbar-width: thin;
+  scrollbar-width: auto;
+}
+.canvas-viewport::-webkit-scrollbar {
+  width: 16px;
+  height: 18px;
+}
+.canvas-viewport::-webkit-scrollbar-track {
+  background: #e4e7dc;
+}
+.canvas-viewport::-webkit-scrollbar-thumb {
+  background: #89997b;
+  border: 3px solid #e4e7dc;
+  border-radius: 9px;
 }
 .canvas-viewport #canvas {
   width: max-content;
@@ -891,6 +903,66 @@ input[type="color"] {
 .public-canvas #canvas,
 .preview #canvas {
   touch-action: pan-x pan-y;
+  cursor: grab;
+  user-select: none;
+}
+.canvas-viewport.panning,
+.canvas-viewport.panning * {
+  cursor: grabbing !important;
+}
+.height-periods {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 0 0;
+  margin-bottom: 18px;
+}
+.height-periods h3 {
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.height-period {
+  background: #efefe6;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+.height-period .field {
+  margin-bottom: 9px;
+}
+.height-periods button {
+  font-size: 10px;
+}
+.detail-dialog {
+  width: fit-content;
+  max-width: calc(100vw - 32px);
+  max-height: 90dvh;
+  padding: 24px;
+}
+.detail-dialog img {
+  display: block;
+  width: min(80vw, 1200px);
+  max-width: 100%;
+  max-height: 78dvh;
+  object-fit: contain;
+}
+.detail-dialog .detail-text {
+  width: min(80vw, 900px);
+  max-width: 100%;
+  max-height: 75dvh;
+  overflow: auto;
+  padding: 22px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.detail-dialog .detail-close {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  font-size: 10px;
+  padding: 4px 8px;
 }
 .viewer-hint {
   font-size: 10px;
@@ -1117,6 +1189,15 @@ dialog .dialog-close {
   }
 }
 @media (max-width: 760px) {
+  .layer-tabs {
+    flex-wrap: wrap;
+  }
+  .layer-tabs button {
+    flex-basis: 50%;
+  }
+  .detail-dialog {
+    padding: 16px;
+  }
   .public-header {
     height: 75px;
   }

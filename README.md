@@ -36,6 +36,14 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   background colors, start/end fade durations, and optional merge target. A merge
   ends at the bar's end year, uses a cubic spline, and blends into the target color.
   The target must exist at that year; circular merges are rejected.
+- In a bar's Properties, use **Add height-change period** to set a start year,
+  end year and target height. Each non-overlapping period changes the thickness
+  with a smooth cubic spline; the new height remains until the next period.
+  The bar's top position stays anchored. Captions and connections use the same
+  height geometry in the viewer and exports.
+- Use **Branches → Add branch** to connect a year on one bar to a year on another.
+  Both bars continue independently. The ribbon uses the bars' endpoint heights and
+  blends their colors; forward, reverse and same-year connections are supported.
 - Move a bar caption horizontally by dragging its text, or set **Caption year**
   in Properties. Drag the colored bar itself to move the whole bar.
 - Add text, boxes and illustrations from Overlays. Text supports line breaks and
@@ -54,8 +62,10 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   not accepted; rasterize SVG illustrations before uploading.
 - Add Events for vertical lines with independent year, position, height, width,
   color, caption and under/over placement.
-- Select layers or canvas objects to edit them. Drag to move them horizontally
-  and vertically. Use Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z for undo/redo, Ctrl/Cmd+S to
+- Select layers or canvas objects to edit them. Drag a bar vertically by default;
+  hold **Shift** to also move it in time. Its height-change periods, captions,
+  anchored graphics and branch endpoints move with it. Overlays can be dragged
+  freely. Use Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z for undo/redo, Ctrl/Cmd+S to
   save, and Delete to remove a selected element. The inspector offers duplication.
 - Zoom horizontally with the controls or Ctrl/Cmd+scroll. Bar heights, vertical
   spacing, type sizes and illustration dimensions stay fixed. Fit shows the entire width. The ruler
@@ -63,6 +73,10 @@ empty library. Schema creation is idempotent; it does not reset existing data.
 - **Save draft** persists editing changes. **Publish** saves and replaces the
   public snapshot. **Preview** shows the current draft without editing controls.
   **Unpublish** is in Timeline settings and keeps the editable draft.
+- In the public viewer or editor Preview, drag with the mouse to pan the timeline.
+  The bottom scrollbar has a larger handle. Click text, a box or an illustration
+  to enlarge it; click anywhere again or press Escape to close the detail.
+  Text boxes wrap using measured font widths, with explicit line breaks preserved.
 - Each public path is unique, e.g. `/traditions` or `/history/religions`. A path
   change only affects the public page on publication. The previous public path
   remains reserved until then. Conflicting saves from other sessions are rejected

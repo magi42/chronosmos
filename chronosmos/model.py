@@ -61,10 +61,11 @@ def validate(doc):
     if doc.get('scale') not in ('top', 'bottom', 'both', 'none'):
         raise ValueError('Invalid scale position.')
     bars, overlays, events = (doc.get(k) for k in ('bars', 'overlays', 'events'))
-    if not all(isinstance(v, list) and len(v) <= 500 for v in (bars, overlays, events)):
-        raise ValueError('Each timeline supports up to 500 bars, overlays and event lines.')
+    branches = doc.get('branches', [])
+    if not all(isinstance(v, list) and len(v) <= 500 for v in (bars, overlays, events, branches)):
+        raise ValueError('Each timeline supports up to 500 bars, overlays, event lines and branches.')
     ids = set()
-    for item in bars + overlays + events:
+    for item in bars + overlays + events + branches:
         if not isinstance(item, dict):
             raise ValueError('Invalid timeline element.')
         ident = text(item, 'id', 80)
@@ -88,6 +89,26 @@ def validate(doc):
             caption = year(b, 'captionYear')
             if not ordinal(a) <= ordinal(caption) <= ordinal(z):
                 raise ValueError('Caption year must be within its time bar.')
+        periods = b.get('heightPeriods', [])
+        if not isinstance(periods, list) or len(periods) > 50:
+            raise ValueError('A bar supports up to 50 height-change periods.')
+        period_ids = set()
+        spans = []
+        for period in periods:
+            if not isinstance(period, dict):
+                raise ValueError('Invalid height-change period.')
+            ident = text(period, 'id', 80)
+            if not re.fullmatch(r'[a-zA-Z0-9_-]+', ident) or ident in period_ids:
+                raise ValueError('Height-change identifiers must be unique within their bar.')
+            period_ids.add(ident)
+            p, q = year(period, 'start'), year(period, 'end')
+            if not ordinal(a) <= ordinal(p) < ordinal(q) <= ordinal(z):
+                raise ValueError('A height-change period must be within its bar and end after it starts.')
+            num(period, 'height', 4, 160)
+            spans.append((ordinal(p), ordinal(q)))
+        ordered = sorted(spans)
+        if any(ordered[i][0] < ordered[i-1][1] for i in range(1, len(ordered))):
+            raise ValueError('Height-change periods cannot overlap.')
     for b in bars:
         a, z = b['start'], b['end']
         merge = text(b, 'mergeInto', 80, False)
@@ -106,6 +127,15 @@ def validate(doc):
                 raise ValueError('Bar merges cannot form a cycle.')
             seen.add(cur)
             cur = text(bar_ids[cur], 'mergeInto', 80, False)
+    for branch in branches:
+        source = bar_ids.get(text(branch, 'fromBarId', 80))
+        target = bar_ids.get(text(branch, 'toBarId', 80))
+        if not source or not target or source is target:
+            raise ValueError('A branch needs two different existing time bars.')
+        for bar, key in ((source, 'fromYear'), (target, 'toYear')):
+            point = year(branch, key)
+            if not ordinal(bar['start']) <= ordinal(point) <= ordinal(bar['end']):
+                raise ValueError('A branch endpoint must be within its time bar.')
     for o in overlays:
         if o.get('type') not in ('text', 'box', 'image'):
             raise ValueError('Invalid overlay type.')

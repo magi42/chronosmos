@@ -1,5 +1,24 @@
 export const translations = {
   en: {
+    branches: "Branches",
+    branch: "Branch",
+    addBranch: "+ Add branch",
+    fromBar: "From time bar",
+    toBar: "To time bar",
+    fromYear: "From year",
+    toYear: "To year",
+    needTwoBars: "Add at least two time bars before creating a branch.",
+    initialHeight: "Initial height",
+    heightChanges: "Height changes",
+    targetHeight: "Target height",
+    addHeightPeriod: "+ Add height-change period",
+    removePeriod: "Remove period",
+    invalidHeightPeriods:
+      "Height-change periods must be non-overlapping, within the bar, and end after they start.",
+    heightPeriodHint:
+      "Each period smoothly changes the height to its target, which continues until the next change.",
+    enlargedDetail: "Enlarged timeline detail",
+
     textLanguage: "Text language",
     englishBase: "English (base)",
     finnish: "Finnish",
@@ -24,7 +43,7 @@ export const translations = {
     allTimelines: "← All timelines",
     fit: "Fit",
     viewerHint:
-      "Scroll to explore · Ctrl + scroll to zoom · Dates before 1 CE are shown as BCE",
+      "Drag to pan · Click text or graphics to enlarge · Ctrl + scroll to zoom",
     signOut: "Sign out",
     preview: "Preview",
     closePreview: "Close preview",
@@ -42,7 +61,7 @@ export const translations = {
     beginTitle: "Make room for a story.",
     beginText: "Create a timeline to begin composing.",
     canvasHint:
-      "Select a layer to edit · Drag to position · Ctrl + scroll to zoom",
+      "Drag bars vertically · Shift + drag also moves in time · Ctrl + scroll to zoom",
     properties: "PROPERTIES",
     newTimeline: "New timeline",
     noTimelines: "No published timelines yet.",
@@ -176,6 +195,25 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    branches: "Haarat",
+    branch: "Haara",
+    addBranch: "+ Lisää haara",
+    fromBar: "Lähtöpalkki",
+    toBar: "Kohdepalkki",
+    fromYear: "Lähtövuosi",
+    toYear: "Kohdevuosi",
+    needTwoBars: "Lisää vähintään kaksi aikapalkkia ennen haaran luomista.",
+    initialHeight: "Alkukorkeus",
+    heightChanges: "Korkeuden muutokset",
+    targetHeight: "Tavoitekorkeus",
+    addHeightPeriod: "+ Lisää korkeuden muutosjakso",
+    removePeriod: "Poista jakso",
+    invalidHeightPeriods:
+      "Muutosjaksojen on oltava palkin sisällä, erillisiä ja päätyttävä alkamisen jälkeen.",
+    heightPeriodHint:
+      "Jakso muuttaa korkeuden pehmeästi tavoitteeseen, joka säilyy seuraavaan muutokseen asti.",
+    enlargedDetail: "Aikajanan suurennettu yksityiskohta",
+
     textLanguage: "Tekstin kieli",
     englishBase: "Englanti (peruskieli)",
     finnish: "Suomi",
@@ -199,7 +237,7 @@ export const translations = {
     allTimelines: "← Kaikki aikajanat",
     fit: "Sovita",
     viewerHint:
-      "Vieritä tutkiaksesi · Ctrl + vieritys zoomaa · Ennen vuotta 1 olevat vuodet merkitään eaa.",
+      "Siirrä näkymää vetämällä · Suurenna teksti tai kuva napsauttamalla · Ctrl + vieritys zoomaa",
     signOut: "Kirjaudu ulos",
     preview: "Esikatselu",
     closePreview: "Sulje esikatselu",
@@ -217,7 +255,7 @@ export const translations = {
     beginTitle: "Tee tilaa tarinalle.",
     beginText: "Aloita luomalla aikajana.",
     canvasHint:
-      "Valitse taso muokattavaksi · Siirrä vetämällä · Ctrl + vieritys zoomaa",
+      "Siirrä palkkia pystysuunnassa · Vaihto + veto siirtää myös ajassa · Ctrl + vieritys zoomaa",
     properties: "OMINAISUUDET",
     newTimeline: "Uusi aikajana",
     noTimelines: "Ei vielä julkaistuja aikajanoja.",

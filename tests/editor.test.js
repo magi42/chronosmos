@@ -137,12 +137,13 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   const currentZoom =
     (width() - PAD * 2) / (dimensions(sample).width - PAD * 2);
   $("#canvas").setPointerCapture = () => {};
-  const pointer = (type, x, y) =>
+  const pointer = (type, x, y, shiftKey = false) =>
     new dom.window.MouseEvent(type, {
       clientX: x,
       clientY: y,
       button: 0,
       bubbles: true,
+      shiftKey,
     });
   $('#canvas [data-id="egypt"]').dispatchEvent(
     pointer("pointerdown", 200, 100),
@@ -150,19 +151,18 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   $("#canvas").dispatchEvent(pointer("pointermove", 244, 136));
   $("#canvas").dispatchEvent(pointer("pointerup", 244, 136));
   assert.equal(Number($("#field-y").value), sample.bars[0].y + 36);
-  assert.equal(
-    ordinal(Number($("#field-start").value)) - ordinal(sample.bars[0].start),
-    Math.round(44 / currentZoom / UNIT),
-  );
+  assert.equal(Number($("#field-start").value), sample.bars[0].start);
   await click("#undo");
   await click("#zoom-fit");
   assert.equal($("#canvas svg").style.height, height);
   assert.ok(width() <= viewport.clientWidth - 64 + 1e-10);
   const fitZoom = (width() - PAD * 2) / (dimensions(sample).width - PAD * 2);
-  const dragElement = (selector, dx, dy) => {
-    $(selector).dispatchEvent(pointer("pointerdown", 200, 100));
-    $("#canvas").dispatchEvent(pointer("pointermove", 200 + dx, 100 + dy));
-    $("#canvas").dispatchEvent(pointer("pointerup", 200 + dx, 100 + dy));
+  const dragElement = (selector, dx, dy, shift = false) => {
+    $(selector).dispatchEvent(pointer("pointerdown", 200, 100, shift));
+    $("#canvas").dispatchEvent(
+      pointer("pointermove", 200 + dx, 100 + dy, shift),
+    );
+    $("#canvas").dispatchEvent(pointer("pointerup", 200 + dx, 100 + dy, shift));
   };
   dragElement('#canvas [data-id="egypt"] [data-caption]', 50, 80);
   assert.equal(Number($("#field-start").value), sample.bars[0].start);
@@ -186,7 +186,7 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   setField("offsetY", -30);
   await click('[data-tab="bars"]');
   await click('#layer-list [data-id="egypt"]');
-  dragElement('#canvas [data-id="egypt"] path', 2 * UNIT * fitZoom, 40);
+  dragElement('#canvas [data-id="egypt"] path', 2 * UNIT * fitZoom, 40, true);
   assert.equal(Number($("#field-captionYear").value), 2);
   assert.equal(Number($("#field-y").value), sample.bars[0].y + 40);
   await click('[data-tab="overlays"]');
@@ -384,5 +384,44 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
     serverDoc.overlays.at(-1).translations.fi.text,
     "Laatikon teksti",
   );
+  await click('[data-tab="bars"]');
+  await click('#layer-list [data-id="egypt"]');
+  await click("#add-height-period");
+  const periodHeight = $('[data-period-field="height"]');
+  periodHeight.value = "72";
+  periodHeight.onchange();
+  await click("#save");
+  assert.equal(serverDoc.bars[0].heightPeriods[0].height, 72);
+  const periodStart = serverDoc.bars[0].heightPeriods[0].start;
+  await click("[data-remove-period]");
+  assert.equal(document.querySelectorAll("[data-height-period]").length, 0);
+  await click("#undo");
+  assert.equal(document.querySelectorAll("[data-height-period]").length, 1);
+  await click('[data-tab="branches"]');
+  await click('[data-add="branch"]');
+  setField("fromYear", -1);
+  setField("toYear", -200);
+  await click("#save");
+  assert.equal(serverDoc.branches.length, 1);
+  assert.equal(serverDoc.branches[0].fromYear, -1);
+  await click('[data-tab="bars"]');
+  await click('#layer-list [data-id="egypt"]');
+  const oldStart = Number($("#field-start").value);
+  dragElement('#canvas [data-id="egypt"] path', 40, 10);
+  assert.equal(Number($("#field-start").value), oldStart);
+  dragElement('#canvas [data-id="egypt"] path', 2 * UNIT * fitZoom, 5, true);
+  await click("#save");
+  assert.equal(serverDoc.branches[0].fromYear, 2);
+  assert.equal(serverDoc.branches[0].toYear, -200);
+  assert.equal(
+    ordinal(serverDoc.bars[0].heightPeriods[0].start) - ordinal(periodStart),
+    2,
+  );
+  await click("#delete-element");
+  await click("#save");
+  assert.equal(serverDoc.branches.length, 0);
+  await click("#undo");
+  await click("#save");
+  assert.equal(serverDoc.branches.length, 1);
   dom.window.close();
 });

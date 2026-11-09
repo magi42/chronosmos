@@ -1,4 +1,7 @@
 import { textFor } from "./content.js";
+import { barSectionAt, ribbonPath, branchRibbon } from "./geometry.js";
+import { wrappedLines } from "./text-layout.js";
+export { barSectionAt, wrappedLines };
 export const UNIT = 0.45,
   PAD = 64;
 export const esc = (value) =>
@@ -34,30 +37,6 @@ export function clampYearToBar(bar, year) {
     Math.max(ordinal(bar.start), Math.min(ordinal(bar.end), ordinal(year))),
   );
 }
-// Evaluate the same cubic ribbon used below, including its non-linear x mapping.
-export function barSectionAt(d, bar, year) {
-  const target = d.bars.find((b) => b.id === bar.mergeInto);
-  const duration = target
-    ? Math.min(bar.mergeYears, ordinal(bar.end) - ordinal(bar.start))
-    : 0;
-  const progress = duration
-    ? (ordinal(year) - (ordinal(bar.end) - duration)) / duration
-    : 0;
-  if (!target || progress <= 0) return { y: bar.y, height: bar.height };
-  let lo = 0,
-    hi = 1;
-  for (let i = 0; i < 32; i++) {
-    const t = (lo + hi) / 2;
-    if (1.5 * t - 1.5 * t * t + t * t * t < Math.min(1, progress)) lo = t;
-    else hi = t;
-  }
-  const t = (lo + hi) / 2,
-    blend = t * t * (3 - 2 * t);
-  return {
-    y: bar.y + (target.y - bar.y) * blend,
-    height: bar.height + (target.height - bar.height) * blend,
-  };
-}
 export function overlayPosition(d, overlay) {
   const bar = d.bars.find((b) => b.id === overlay.anchorBarId);
   return {
@@ -70,33 +49,20 @@ export function overlayPosition(d, overlay) {
 export function yearLabel(y, lang = "en") {
   return y < 0 ? `${Math.abs(y)} ${lang === "fi" ? "eaa." : "BCE"}` : String(y);
 }
-export function wrappedLines(text, width, size) {
-  const lines = [];
-  const max = Math.max(1, Math.floor(width / (size * 0.56)));
-  for (const paragraph of text.split("\n")) {
-    let line = "";
-    for (const word of paragraph.split(" ")) {
-      if (line && line.length + word.length + 1 > max) {
-        lines.push(line);
-        line = word;
-      } else line += (line ? " " : "") + word;
-    }
-    lines.push(line);
-  }
-  return lines;
-}
 export function renderTimeline(
   d,
   {
     selected = null,
     language = "en",
     interactive = false,
+    viewing = false,
     horizontalScale = 1,
     pixelScale = 1,
   } = {},
 ) {
   const { width, height, widthMm, heightMm } = dimensions(d, horizontalScale),
     x = (y) => xFor(d, y, horizontalScale),
+    xOrdinal = (at) => PAD + (at - ordinal(d.start)) * UNIT * horizontalScale,
     defs = [];
   const select = (kind, o) =>
     interactive
@@ -159,6 +125,17 @@ export function renderTimeline(
     .filter((e) => e.layer === "under")
     .map(event)
     .join("");
+  for (const branch of d.branches ?? []) {
+    const ribbon = branchRibbon(d, branch, xOrdinal, horizontalScale);
+    if (!ribbon) continue;
+    const id = "branch-" + branch.id;
+    const a = barSectionAt(d, ribbon.from, branch.fromYear),
+      b = barSectionAt(d, ribbon.to, branch.toYear);
+    defs.push(
+      `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${ribbon.ax}" x2="${ribbon.bx}" y1="${a.y}" y2="${b.y}"><stop offset="0%" stop-color="${ribbon.from.background}"/><stop offset="100%" stop-color="${ribbon.to.background}"/></linearGradient>`,
+    );
+    content += `<g${select("branches", { ...branch, label: textFor(ribbon.from, "label", language) + " → " + textFor(ribbon.to, "label", language) })}><path d="${ribbon.path}" fill="url(#${id})"/>${outline("branches", branch, Math.min(ribbon.ax, ribbon.bx), ribbon.top, Math.abs(ribbon.bx - ribbon.ax), ribbon.bottom - ribbon.top)}</g>`;
+  }
   for (const b of d.bars) {
     const a = x(b.start),
       z = x(b.end),
@@ -185,18 +162,14 @@ export function renderTimeline(
     else stops.push([1, b.background]);
     const grad = "grad-" + b.id,
       clip = "clip-" + b.id;
+    const ribbon = ribbonPath(d, b, xOrdinal);
     defs.push(
-      `<linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${a}" x2="${z}" y1="0" y2="0">${stops.map(([p, c]) => `<stop offset="${p * 100}%" stop-color="${c}"/>`).join("")}</linearGradient><clipPath id="${clip}"><rect x="${a}" y="${Math.min(b.y, target?.y ?? b.y)}" width="${len}" height="${Math.max(b.y + b.height, target ? target.y + target.height : b.y + b.height) - Math.min(b.y, target?.y ?? b.y)}"/></clipPath>`,
+      `<linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${a}" x2="${z}" y1="0" y2="0">${stops.map(([p, c]) => `<stop offset="${p * 100}%" stop-color="${c}"/>`).join("")}</linearGradient><clipPath id="${clip}"><rect x="${a}" y="${ribbon.top}" width="${len}" height="${ribbon.bottom - ribbon.top}"/></clipPath>`,
     );
-    let path = `M${a},${b.y} H${m}`;
-    if (target) {
-      const c = m + merge * 0.5;
-      path += ` C${c},${b.y} ${c},${target.y} ${z},${target.y} L${z},${target.y + target.height} C${c},${target.y + target.height} ${c},${b.y + b.height} ${m},${b.y + b.height}`;
-    } else path += ` V${b.y + b.height}`;
-    path += ` H${a} Z`;
+    const path = ribbon.path;
     const captionYear = b.captionYear ?? b.start;
     const caption = barSectionAt(d, b, captionYear);
-    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(captionYear) + 10}" y="${caption.y + caption.height / 2}" dominant-baseline="central" fill="${b.foreground}" font-size="${Math.min(14, b.height * 0.65)}" clip-path="url(#${clip})">${esc(textFor(b, "label", language))}</text>${outline("bars", b, a, b.y, len, b.height)}</g>`;
+    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(captionYear) + 10}" y="${caption.y + caption.height / 2}" dominant-baseline="central" fill="${b.foreground}" font-size="${Math.min(14, b.height * 0.65)}" clip-path="url(#${clip})">${esc(textFor(b, "label", language))}</text>${outline("bars", b, a, ribbon.top, len, ribbon.bottom - ribbon.top)}</g>`;
   }
   for (const stored of d.overlays) {
     const o = {
@@ -211,7 +184,7 @@ export function renderTimeline(
     else {
       if (o.type === "box")
         body = `<rect x="${xx}" y="${o.y}" width="${o.width}" height="${o.height}" fill="${o.fill}" rx="3"/>`;
-      const inset = o.type === "box" ? 12 : 0;
+      const inset = o.type === "box" ? 8 : 0;
       body += `<text x="${xx + inset}" y="${o.y + o.fontSize + inset}" fill="${o.color}" font-size="${o.fontSize}">${wrappedLines(
         o.text,
         o.width - inset * 2,
@@ -223,7 +196,10 @@ export function renderTimeline(
         )
         .join("")}</text>`;
     }
-    content += `<g${select("overlays", o)} style="${interactive ? "cursor:move" : ""}">${interactive ? `<rect x="${xx}" y="${o.y}" width="${o.width}" height="${o.height}" fill="transparent"/>` : ""}${body}${outline("overlays", o, xx, o.y, o.width, o.height)}</g>`;
+    const viewAttributes = viewing
+      ? ` data-view-id="${esc(o.id)}" tabindex="0" role="button" aria-label="${esc(textFor(o, "text", language) || o.type)}"`
+      : "";
+    content += `<g${select("overlays", o)}${viewAttributes} style="${interactive ? "cursor:move" : viewing ? "cursor:zoom-in" : ""}">${interactive || viewing ? `<rect x="${xx}" y="${o.y}" width="${o.width}" height="${o.height}" fill="transparent"/>` : ""}${body}${outline("overlays", o, xx, o.y, o.width, o.height)}</g>`;
   }
   content += d.events
     .filter((e) => e.layer === "over")
