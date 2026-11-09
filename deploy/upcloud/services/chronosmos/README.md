@@ -1,13 +1,14 @@
-# Chronosmos — valmisteltu käyttöönotto
+# Chronosmos — käyttöönotto ja ylläpito
 
-**Tila 9.11.2026: valmisteltu, ei asennettu palvelimelle.**
 Tämän hakemiston asetukset kuuluvat erillisen palvelinprojektin
 `services/chronosmos/`-hakemistoon. Palvelinprojektin paikallinen sijainti
 määritetään Gitin ohittaman `chronosmos.local.json`-tiedoston
 `upcloud_repository`-asetuksessa.
 Lähdeprojektin `deploy/upcloud/` sisältää valmistelukopion; palvelinprojektin
-kopio on käyttöönoton ja jatkoylläpidon lähde. Palvelinta ei ole tarkistettu
-eikä muutettu tämän toteutuksen yhteydessä.
+kopio on käyttöönoton ja jatkoylläpidon lähde. Todellinen käyttöön otettu
+julkaisu ja tarkistustulokset kirjataan palvelinprojektin tilannetietoihin.
+Käyttäjän ohjeen mukaan valmiit muutokset julkaistaan tuotantoon jatkossa
+oletusarvoisesti. Tuotannon tietoja ei korvata kehityskannalla päivityksissä.
 
 ## Palvelu ja tiedostot
 
@@ -36,6 +37,13 @@ ei vaadi Node.js:ää palvelimella. Kuvien käsittely ja suuret viennit voivat
 kuluttaa resursseja; PNG-viennit tehdään selaimessa, lataukset palvelimella.
 
 ## Asennus
+
+Tavallinen julkaisu tehdään puhtaasta, commitoidusta lähdearkistosta
+komennolla `python3 scripts/deploy.py`. Gitin ohittaman paikallisen asetustiedoston
+`upcloud_repository` ja `ssh_host` valitsevat palvelinprojektin ja SSH-kohteen.
+Komento suorittaa testit, luo vain Gitissä olevista tiedostoista lähdepaketin,
+siirtää palvelinprojektin asetukset, asentaa commitista yksilöidyn julkaisun
+ja tarkistaa julkisen HTTPS-terveystilan ja etusivun.
 
 Lue ensin palvelinprojektin `AGENTS.md`, `README.md` ja
 `docs/current-state.md`. Tallenna tämä hakemisto palvelinprojektiin **ennen**
@@ -93,6 +101,15 @@ Julkisilla sivuilla ei näytetä kirjautumislinkkiä. Rekisteröitymistä ei ole
 ja mitätöi käyttäjän vanhat istunnot. Ensimmäinen aikajana luodaan editorissa;
 esimerkin voi tuoda `examples/traditions.chronosmos.json`-tiedostosta.
 
+Ensimmäisessä käyttöönotossa olemassa olevat paikalliset käyttäjät, aikajanat ja
+media voidaan siirtää kertaluonteisesti. `import-initial-data.py` lukee JSON:n
+stdinistä ja kieltäytyy, jos tuotantokannan users-, timelines- tai media-taulu
+ei ole tyhjä. Suorita se sovellusjulkaisun työhakemistosta palvelukäyttäjänä ja
+palvelun ympäristömuuttujilla. Kopioi viitatut kuvat ennen importtia. Siirrä
+salasanatiivisteet sisältävä aineisto yksityisesti SSH:n kautta; älä tallenna
+sitä Gitiin tai tulosta sitä lokeihin. Säilytä julkaisu-/luonnostila ja käyttäjien
+salasanatiivisteet. Älä käytä tätä komentoa myöhemmissä sovelluspäivityksissä.
+
 ## Tarkistus käyttöönoton jälkeen
 
 ```sh
@@ -129,8 +146,8 @@ bash /tmp/chronosmos-ops/verify-restore.sh /var/backups/chronosmos/VALITTU_HAKEM
 
 Palautustesti luo uuden väliaikaisen kannan, tarkistaa tietueet ja jokaisen
 mediatiedoston ja kuvan viittauksen, ja poistaa vain oman testikantansa ja
-väliaikaistiedostonsa. Se ei korvaa tuotantokantaa. Palvelinvarmistuksen ja tämän
-palautustestin toimivuutta **ei ole vielä todennettu UpCloudissa**.
+väliaikaistiedostonsa. Se ei korvaa tuotantokantaa. Kirjaa palvelinvarmistuksen
+ja palautustestin todellinen tulos palvelinprojektin ylläpitodokumentaatioon.
 
 Todellinen palautus tehdään huoltokatkossa: tarkista valitun varmistuksen
 tarkisteet ja palautustesti, pysäytä palvelu, säilytä erillinen varmistus nykyisestä

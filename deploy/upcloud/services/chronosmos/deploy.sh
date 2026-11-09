@@ -11,8 +11,16 @@ printf '%s  %s\n' "$expected_sha" "$archive" | sha256sum -c -
 ops=$(cd -- "$(dirname -- "$0")" && pwd)
 # Check the existing server and DNS before running this installer; see README.
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get install -y python3-venv postgresql apache2 certbot ca-certificates
+missing=()
+for package in python3-venv postgresql apache2 certbot ca-certificates; do
+    if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+        missing+=("$package")
+    fi
+done
+if (( ${#missing[@]} )); then
+    apt-get update -qq
+    apt-get install -y --no-upgrade "${missing[@]}"
+fi
 id chronosmos >/dev/null 2>&1 || useradd --system --home-dir /var/lib/chronosmos --create-home --shell /usr/sbin/nologin chronosmos
 install -d -m 755 /srv/chronosmos/releases
 install -d -m 750 -o chronosmos -g chronosmos /var/lib/chronosmos /var/lib/chronosmos/media

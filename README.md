@@ -106,8 +106,9 @@ separate UpCloud configuration repository. Its local checkout location belongs
 in the ignored `chronosmos.local.json` file, not in tracked source or documentation.
 [Prepared deployment files](deploy/upcloud/services/chronosmos/README.md) are
 included here for review and synchronization; the operational copy in the server
-repository is authoritative. Production has **not** been installed by this project
-creation task. No existing server services have been changed.
+repository is authoritative. Completed changes are deployed to production after
+checks pass, unless local-only work is explicitly requested. Production accounts,
+timelines and media are preserved when deploying application updates.
 
 ### Local workstation configuration
 
@@ -115,7 +116,8 @@ creation task. No existing server services have been changed.
 cp chronosmos.local.example.json chronosmos.local.json
 ```
 
-Set `upcloud_repository` to your local UpCloud configuration checkout. Optional
+Set `upcloud_repository` to your local UpCloud configuration checkout and
+`ssh_host` to its production SSH alias. Optional
 `source_checkout` and `reference_svg_export_filename` settings retain local
 working and artwork export locations. These settings are for development tools;
 the web application uses the environment variables below. Keep workstation paths,
@@ -130,6 +132,16 @@ python3 scripts/sync-upcloud.py
 An explicit destination argument or `--config` file can also be supplied. The
 helper refuses to overwrite operational files with different contents; review
 changes in the canonical deployment repository after the initial synchronization.
+
+After committing a release, deploy it with:
+
+```sh
+python3 scripts/deploy.py
+```
+
+This runs the checks, packages the committed source, uses the canonical server
+configuration, installs an immutable release, and verifies the public HTTPS site.
+It never imports the development database during application updates.
 
 | Environment variable | Meaning |
 | --- | --- |

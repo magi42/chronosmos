@@ -1,5 +1,6 @@
 {
   "upcloud_repository": null,
+  "ssh_host": null,
   "source_checkout": null,
   "reference_svg_export_filename": null
 }

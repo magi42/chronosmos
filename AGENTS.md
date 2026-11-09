@@ -20,3 +20,10 @@
 - Keep local checkout locations and workstation paths in ignored local configuration,
   never in tracked documentation, source, or artwork metadata. Use portable examples
   and repository-relative paths in public files.
+- Deploy completed application changes to production by default, as requested by
+  the user. Run the relevant checks, commit the release, use `scripts/deploy.py`,
+  and verify the live site. Skip deployment only when the user explicitly requests
+  local-only work or when a concrete deployment blocker must be reported.
+- Production is authoritative for editor accounts, timelines and media after the
+  initial migration. Never replace production data with a development database
+  during subsequent deployments.
