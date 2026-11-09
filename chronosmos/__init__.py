@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from functools import wraps
 
 import click
-from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_from_directory, session
+from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -144,7 +144,7 @@ def create_app(config=None):
     @app.get('/manage')
     def manage():
         if not editor():
-            return redirect('/manage/login')
+            return redirect(url_for('login', **({'timeline': request.args['timeline']} if request.args.get('timeline') else {})))
         return render_template('editor.html', csrf=csrf())
 
     @app.route('/manage/login', methods=['GET', 'POST'])
@@ -166,7 +166,7 @@ def create_app(config=None):
                 session.update(username=user['username'], user_version=user['version'])
                 session.permanent = True
                 csrf()
-                return redirect('/manage')
+                return redirect(url_for('manage', **({'timeline': request.args['timeline']} if request.args.get('timeline') else {})))
             count = attempt['attempts'] + 1 if attempt and stamp - attempt['started'] < 900 else 1
             started = attempt['started'] if count > 1 else stamp
             db.execute('INSERT INTO login_attempts (address,attempts,started) VALUES (?,?,?) ON CONFLICT(address) DO UPDATE SET attempts=excluded.attempts,started=excluded.started', (address, count, started))

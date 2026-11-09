@@ -4,6 +4,14 @@ import { wrappedLines } from "./text-layout.js";
 export { barSectionAt, wrappedLines };
 export const UNIT = 0.45,
   PAD = 64;
+export const MAX_YEAR = 1e12;
+// Keep geological timelines in a practical SVG coordinate range.
+export function pixelsPerYear(d) {
+  const span = ordinal(d.end) - ordinal(d.start);
+  return UNIT / 10 ** Math.max(0, Math.floor(Math.log10(span)) - 3);
+}
+export const timeUnitFactor = (unit) =>
+  ({ thousands: 1000, millions: 1e6 })[unit] ?? 1;
 export const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -22,16 +30,17 @@ export function historical(value) {
 }
 export function dimensions(d, horizontalScale = 1) {
   const width =
-    (ordinal(d.end) - ordinal(d.start)) * UNIT * horizontalScale + PAD * 2;
+    (ordinal(d.end) - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale +
+    PAD * 2;
   return {
     width,
     height: d.height,
-    widthMm: (width / UNIT) * d.mmPerYear,
-    heightMm: (d.height / UNIT) * d.mmPerYear,
+    widthMm: (width / pixelsPerYear(d)) * d.mmPerYear,
+    heightMm: (d.height / pixelsPerYear(d)) * d.mmPerYear,
   };
 }
 export const xFor = (d, y, horizontalScale = 1) =>
-  PAD + (ordinal(y) - ordinal(d.start)) * UNIT * horizontalScale;
+  PAD + (ordinal(y) - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale;
 export function clampYearToBar(bar, year) {
   return historical(
     Math.max(ordinal(bar.start), Math.min(ordinal(bar.end), ordinal(year))),
@@ -46,8 +55,33 @@ export function overlayPosition(d, overlay) {
       : overlay.y,
   };
 }
-export function yearLabel(y, lang = "en") {
-  return y < 0 ? `${Math.abs(y)} ${lang === "fi" ? "eaa." : "BCE"}` : String(y);
+export function yearLabel(y, lang = "en", unit = "auto") {
+  const magnitude = Math.abs(y);
+  const selected =
+    unit === "auto" ? (magnitude >= 1e6 ? "millions" : "years") : unit;
+  const factor = magnitude === 1 ? 1 : timeUnitFactor(selected);
+  const number = String(Number((magnitude / factor).toPrecision(10)));
+  const suffix =
+    factor === 1e6
+      ? lang === "fi"
+        ? " milj."
+        : " M"
+      : factor === 1000
+        ? lang === "fi"
+          ? " tuhatta"
+          : " k"
+        : "";
+  return number + suffix + (y < 0 ? ` ${lang === "fi" ? "eaa." : "BCE"}` : "");
+}
+export function eventEndY(d, event) {
+  const bar = d.bars.find((b) => b.id === event.endBarId);
+  if (!bar) return event.endY ?? event.y + event.height;
+  const section = barSectionAt(d, bar, event.year);
+  return (
+    section.y +
+    section.height *
+      { top: 0, center: 0.5, bottom: 1 }[event.endEdge ?? "center"]
+  );
 }
 export function renderTimeline(
   d,
@@ -62,7 +96,8 @@ export function renderTimeline(
 ) {
   const { width, height, widthMm, heightMm } = dimensions(d, horizontalScale),
     x = (y) => xFor(d, y, horizontalScale),
-    xOrdinal = (at) => PAD + (at - ordinal(d.start)) * UNIT * horizontalScale,
+    xOrdinal = (at) =>
+      PAD + (at - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale,
     defs = [];
   const select = (kind, o) =>
     interactive
@@ -75,18 +110,13 @@ export function renderTimeline(
   function ruler(y, bottom) {
     const span = ordinal(d.end) - ordinal(d.start),
       maxTicks = 12000;
-    const desired = 6 / (UNIT * horizontalScale * pixelScale);
-    const minor =
-      desired <= 1
-        ? 1
-        : desired <= 10
-          ? 10
-          : desired <= 100
-            ? 100
-            : desired <= 1000
-              ? 1000
-              : 10000;
-    const step = Math.max(minor, Math.ceil(span / maxTicks / minor) * minor);
+    const desired = Math.max(
+      1,
+      6 / (pixelsPerYear(d) * horizontalScale * pixelScale),
+      span / maxTicks,
+    );
+    const power = 10 ** Math.floor(Math.log10(desired));
+    const step = [1, 2, 5, 10].find((n) => n * power >= desired) * power;
     let out = `<g fill="#69685f" stroke="#c4c0b4" font-family="Arial, sans-serif" font-size="11"><line x1="${PAD}" x2="${width - PAD}" y1="${y}" y2="${y}"/>`;
     // Tick values are historical years, not multiples of astronomical year zero.
     const years = new Set([
@@ -110,15 +140,16 @@ export function renderTimeline(
         len = major ? 11 : decade ? 8 : 4;
       out += `<line x1="${xx}" x2="${xx}" y1="${y}" y2="${y + (bottom ? -len : len)}"/>`;
       if (xx - lastLabel >= labelSpacing || year === 1) {
-        out += `<text x="${xx}" y="${y + (bottom ? 23 : -15)}" text-anchor="middle" stroke="none">${esc(yearLabel(year, language))}</text>`;
+        out += `<text x="${xx}" y="${y + (bottom ? 23 : -15)}" text-anchor="middle" stroke="none">${esc(yearLabel(year, language, d.timeUnit))}</text>`;
         lastLabel = xx;
       }
     }
     return out + "</g>";
   }
   function event(e) {
-    const xx = x(e.year);
-    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${e.y + e.height}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${e.y + e.height}" stroke="transparent" stroke-width="12"/>` : ""}<text x="${xx + 7}" y="${e.y - 9}" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, e.y, 1, e.height)}</g>`;
+    const xx = x(e.year),
+      end = eventEndY(d, e);
+    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${end}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${end}" stroke="transparent" stroke-width="12"/>` : ""}<text x="${xx + 7}" y="${e.y - 9}" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, Math.min(e.y, end), 1, Math.abs(end - e.y))}</g>`;
   }
   let content = `<rect width="${width}" height="${height}" fill="${d.background}"/>`;
   content += d.events
@@ -141,10 +172,13 @@ export function renderTimeline(
       z = x(b.end),
       len = z - a,
       target = d.bars.find((t) => t.id === b.mergeInto),
-      merge = target ? Math.min(b.mergeYears * UNIT * horizontalScale, len) : 0,
+      merge = target
+        ? Math.min(b.mergeYears * pixelsPerYear(d) * horizontalScale, len)
+        : 0,
       m = z - merge;
-    const fi = Math.min(b.fadeIn * UNIT * horizontalScale, len) / len,
-      fo = Math.min(b.fadeOut * UNIT * horizontalScale, len) / len,
+    const fi =
+        Math.min(b.fadeIn * pixelsPerYear(d) * horizontalScale, len) / len,
+      fo = Math.min(b.fadeOut * pixelsPerYear(d) * horizontalScale, len) / len,
       stops = [];
     if (fi > 0)
       stops.push(

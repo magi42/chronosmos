@@ -11,7 +11,10 @@ import {
   ordinal,
   historical,
   yearLabel,
-  UNIT,
+  pixelsPerYear,
+  MAX_YEAR,
+  timeUnitFactor,
+  eventEndY,
   PAD,
   esc,
 } from "./timeline.js";
@@ -121,6 +124,13 @@ function normalizeAttachments() {
       );
     }
   }
+  for (const event of doc.events) {
+    const bar = doc.bars.find((b) => b.id === event.endBarId);
+    if (bar) {
+      event.year = clampYearToBar(bar, event.year);
+      event.endY = eventEndY(doc, event);
+    }
+  }
   for (const branch of doc.branches ?? []) {
     const from = doc.bars.find((b) => b.id === branch.fromBarId),
       to = doc.bars.find((b) => b.id === branch.toBarId);
@@ -156,7 +166,7 @@ function updateStatus() {
   );
 }
 function yearRange(d) {
-  return `${yearLabel(d.start, language)} — ${yearLabel(d.end, language)}`;
+  return `${yearLabel(d.start, language, d.timeUnit)} — ${yearLabel(d.end, language, d.timeUnit)}`;
 }
 function resizeCanvas() {
   if (!doc) return;
@@ -296,6 +306,26 @@ function renderViewerHeading() {
 async function refreshProjects() {
   projects = await api("/api/timelines?editor=1");
   renderProjectPicker();
+  renderChooser();
+}
+function projectURL(id) {
+  history.replaceState(
+    null,
+    "",
+    id ? "/manage?timeline=" + encodeURIComponent(id) : "/manage",
+  );
+}
+function renderChooser() {
+  $("#timeline-chooser").hidden = !!doc;
+  $("#editor-workspace").hidden = !doc;
+  $("#managed-timelines").innerHTML = projects.length
+    ? projects
+        .map(
+          (p) =>
+            `<a class="managed-timeline" href="/manage?timeline=${encodeURIComponent(p.id)}"><strong>${esc(textFor(p, "title", language))}</strong><span class="badge">${esc(t(p.published ? "live" : "draft"))}</span><p>${esc(textFor(p, "description", language))}</p><small>/${esc(p.slug ?? "")}</small></a>`,
+        )
+        .join("")
+    : `<p>${esc(t("emptyLibrary"))}</p>`;
 }
 function renderProjectPicker() {
   const picker = $("#project-select");
@@ -336,10 +366,11 @@ async function loadProject(id) {
   selected = null;
   renderEditor();
   fit();
-  history.replaceState(null, "", "#" + id);
+  projectURL(id);
 }
 async function newProject() {
   if (dirty() && !(await confirmAction(t("leaveQuestion")))) return;
+  projectURL("new");
   doc = {
     version: 1,
     title: t("nameNew", "en"),
@@ -372,6 +403,7 @@ function selectedItem() {
   return selected && doc?.[selected.kind]?.find((o) => o.id === selected.id);
 }
 function renderEditor() {
+  renderChooser();
   renderProjectPicker();
   $("#empty-canvas").hidden = !!doc;
   $("#element-count").textContent = doc
@@ -543,8 +575,25 @@ function renderInspector() {
         hint: t("pathHint").replace("{slug}", doc.slug),
       }) +
       field("description", "description", "textarea", doc.description) +
-      `<div class="field-pair">${number("start", "start", doc.start, -100000, 100000)}${number("end", "end", doc.end, -100000, 100000)}</div><p class="field-note">${esc(t("dateHint"))}</p><div class="inspector-divider"></div>` +
-      number("mmPerYear", "mmPerYear", doc.mmPerYear, 0.01, 100, 0.01) +
+      `<div class="field-pair">${number("start", "start", doc.start, -MAX_YEAR, MAX_YEAR)}${number("end", "end", doc.end, -MAX_YEAR, MAX_YEAR)}</div><p class="field-note">${esc(t("dateHint"))}</p><div class="inspector-divider"></div>` +
+      field("timeUnit", "timeUnit", "select", doc.timeUnit ?? "auto", {
+        choices: ["auto", "years", "thousands", "millions"].map((v) => [
+          v,
+          t(v),
+        ]),
+      }) +
+      number(
+        "mmPerYear",
+        doc.timeUnit === "millions"
+          ? "mmPerMillion"
+          : doc.timeUnit === "thousands"
+            ? "mmPerThousand"
+            : "mmPerYear",
+        doc.mmPerYear * timeUnitFactor(doc.timeUnit),
+        1e-12 * timeUnitFactor(doc.timeUnit),
+        100 * timeUnitFactor(doc.timeUnit),
+        "any",
+      ) +
       `<p class="field-note">${esc(t("printHint"))}</p>` +
       number("height", "height", doc.height, 200, 4000) +
       field("scale", "scale", "select", doc.scale, {
@@ -565,13 +614,22 @@ function renderInspector() {
           o.start,
           o.end,
         ) +
-        `<div class="field-pair">${number("start", "start", o.start, -100000, 100000)}${number("end", "end", o.end, -100000, 100000)}</div><p class="field-note">${esc(t("dateHint"))}</p>` +
+        `<div class="field-pair">${number("start", "start", o.start, -MAX_YEAR, MAX_YEAR)}${number("end", "end", o.end, -MAX_YEAR, MAX_YEAR)}</div><p class="field-note">${esc(t("dateHint"))}</p>` +
         number("y", "y", o.y, 60, doc.height - 60) +
         number("height", "initialHeight", o.height, 4, 160) +
+        field(
+          "heightAlignment",
+          "heightAlignment",
+          "select",
+          o.heightAlignment ?? "center",
+          {
+            choices: ["top", "center", "bottom"].map((v) => [v, t(v)]),
+          },
+        ) +
         heightPeriodFields(o) +
         `<div class="field-pair">${color("background", "background", o.background)}${color("foreground", "foreground", o.foreground)}</div><div class="inspector-divider"></div>` +
-        number("fadeIn", "fadeIn", o.fadeIn, 0, 100000) +
-        number("fadeOut", "fadeOut", o.fadeOut, 0, 100000) +
+        number("fadeIn", "fadeIn", o.fadeIn, 0, 2 * MAX_YEAR) +
+        number("fadeOut", "fadeOut", o.fadeOut, 0, 2 * MAX_YEAR) +
         field("mergeInto", "mergeInto", "select", o.mergeInto, {
           choices: [
             ["", t("none")],
@@ -612,8 +670,8 @@ function renderInspector() {
           "year",
           anchor ? "anchorYear" : "year",
           o.year,
-          anchor?.start ?? -100000,
-          anchor?.end ?? 100000,
+          anchor?.start ?? -MAX_YEAR,
+          anchor?.end ?? MAX_YEAR,
         ) +
         (anchor
           ? number("offsetY", "offsetY", o.offsetY ?? 0, -4000, 4000, "any")
@@ -643,9 +701,24 @@ function renderInspector() {
     } else
       html +=
         field("label", "label", "text", o.label) +
-        number("year", "year", o.year, -100000, 100000) +
+        number("year", "year", o.year, -MAX_YEAR, MAX_YEAR) +
         number("y", "y", o.y, 0, doc.height) +
-        number("height", "height", o.height, 1, doc.height) +
+        field("endBarId", "endBar", "select", o.endBarId ?? "", {
+          choices: [
+            ["", t("freePosition")],
+            ...doc.bars.map((b) => [
+              b.id,
+              textFor(b, "label", language) || t("timeBar"),
+            ]),
+          ],
+        }) +
+        (o.endBarId
+          ? field("endEdge", "endEdge", "select", o.endEdge ?? "center", {
+              choices: ["top", "center", "bottom"].map((v) => [v, t(v)]),
+            })
+          : o.endY !== undefined
+            ? number("endY", "endPosition", o.endY, -4000, 8000, "any")
+            : number("height", "height", o.height, 1, doc.height)) +
         number("width", "width", o.width, 0.25, 20, 0.25) +
         color("color", "color", o.color) +
         field("layer", "layer", "select", o.layer, {
@@ -727,6 +800,7 @@ function renderInspector() {
           input.value = target[key] ?? target.start;
           return;
         }
+        if (key === "mmPerYear") value /= timeUnitFactor(doc.timeUnit);
         const candidate = { ...target, [key]: value };
         if (
           "start" in candidate &&
@@ -758,6 +832,9 @@ function renderInspector() {
               delete target.offsetY;
             }
           }
+          if (key === "endBarId") {
+            target.endY = eventEndY(doc, target);
+          }
           target[key] = value;
           if (key === "height" && target === doc) {
             doc.bars.forEach((b) => (b.y = Math.min(b.y, doc.height - 60)));
@@ -776,6 +853,12 @@ function renderInspector() {
         const clone = structuredClone(o);
         clone.id = uid();
         if ("y" in clone) clone.y = Math.min(doc.height - 60, clone.y + 42);
+        if (
+          selected.kind === "events" &&
+          !clone.endBarId &&
+          clone.endY !== undefined
+        )
+          clone.endY = Math.min(8000, clone.endY + clone.y - o.y);
         if (clone.anchorBarId)
           clone.offsetY = Math.min(4000, (clone.offsetY ?? 0) + 42);
         doc[selected.kind].push(clone);
@@ -786,6 +869,10 @@ function renderInspector() {
       change(() => {
         const id = o.id;
         if (selected.kind === "bars") {
+          for (const event of doc.events.filter((e) => e.endBarId === id)) {
+            event.endY = eventEndY(doc, event);
+            delete event.endBarId;
+          }
           doc.branches = (doc.branches ?? []).filter(
             (branch) => branch.fromBarId !== id && branch.toBarId !== id,
           );
@@ -834,6 +921,7 @@ function renderInspector() {
           });
         doc = null;
         ident = null;
+        projectURL(null);
         savedRaw = "";
         selected = null;
         await refreshProjects();
@@ -864,7 +952,7 @@ function addElement(type, media = null) {
         fromYear: year,
         toYear: clampYearToBar(
           to,
-          historical(Math.min(99999, ordinal(year) + 100)),
+          historical(Math.min(MAX_YEAR - 1, ordinal(year) + 100)),
         ),
       };
       tab = "branches";
@@ -945,7 +1033,7 @@ async function saveDraft() {
   ident = result.id;
   revision = result.revision;
   savedRaw = snapshot;
-  history.replaceState(null, "", "#" + ident);
+  projectURL(ident);
   await refreshProjects();
   updateStatus();
 }
@@ -989,6 +1077,9 @@ function wireDragging() {
               .filter((o) => o.anchorBarId === id)
               .map((o) => ({ id: o.id, year: o.year }))
           : [],
+      eventEndpoints: doc.events
+        .filter((event) => event.endBarId === id)
+        .map((event) => ({ id: event.id, year: event.year })),
       branchEndpoints: (doc.branches ?? [])
         .filter((b) => b.fromBarId === id || b.toBarId === id)
         .map((b) => structuredClone(b)),
@@ -1010,15 +1101,15 @@ function wireDragging() {
     const o = selectedItem(),
       b = drag.object;
     if (drag.kind === "bars" && !drag.caption && e.shiftKey)
-      drag.timeOffset = Math.round(dx / UNIT);
+      drag.timeOffset = Math.round(dx / pixelsPerYear(doc));
     const offset =
       drag.kind === "bars" && !drag.caption
         ? (drag.timeOffset ?? 0)
-        : Math.round(dx / UNIT);
+        : Math.round(dx / pixelsPerYear(doc));
     if (drag.caption) {
       const candidate = Math.max(
-        -100000,
-        Math.min(99999, ordinal(b.captionYear ?? b.start) + offset),
+        -MAX_YEAR,
+        Math.min(MAX_YEAR - 1, ordinal(b.captionYear ?? b.start) + offset),
       );
       o.captionYear = clampYearToBar(o, historical(candidate));
       renderCanvas();
@@ -1031,11 +1122,13 @@ function wireDragging() {
         Math.min(doc.height - (drag.kind === "bars" ? 60 : 0), b.y + dy),
       ),
     );
+    if (drag.kind === "events" && !b.endBarId && b.endY !== undefined)
+      o.endY = Math.max(-4000, Math.min(8000, b.endY + o.y - b.y));
     if (drag.kind === "bars") {
       const length = ordinal(b.end) - ordinal(b.start),
         a = Math.max(
-          -100000,
-          Math.min(99999 - length, ordinal(b.start) + offset),
+          -MAX_YEAR,
+          Math.min(MAX_YEAR - 1 - length, ordinal(b.start) + offset),
         );
       o.start = historical(a);
       o.end = historical(a + length);
@@ -1053,6 +1146,11 @@ function wireDragging() {
           ordinal(anchor.year) + delta,
         );
       }
+      for (const endpoint of drag.eventEndpoints) {
+        doc.events.find((event) => event.id === endpoint.id).year = historical(
+          ordinal(endpoint.year) + delta,
+        );
+      }
       for (const endpoint of drag.branchEndpoints) {
         const branch = doc.branches.find((b) => b.id === endpoint.id);
         if (endpoint.fromBarId === o.id)
@@ -1062,7 +1160,7 @@ function wireDragging() {
       }
     } else {
       o.year = historical(
-        Math.max(-100000, Math.min(99999, ordinal(b.year) + offset)),
+        Math.max(-MAX_YEAR, Math.min(MAX_YEAR - 1, ordinal(b.year) + offset)),
       );
       const anchor = doc.bars.find((bar) => bar.id === o.anchorBarId);
       if (anchor) {
@@ -1147,7 +1245,7 @@ async function exportSvg() {
   const parsed = new DOMParser().parseFromString(
     renderTimeline(doc, {
       language,
-      pixelScale: (doc.mmPerYear * 96) / 25.4 / UNIT,
+      pixelScale: (doc.mmPerYear * 96) / 25.4 / pixelsPerYear(doc),
     }),
     "image/svg+xml",
   );
@@ -1241,6 +1339,7 @@ function openExport() {
 async function initEditor() {
   wireDragging();
   $("#new-timeline").onclick = action(newProject);
+  $("#create-timeline").onclick = action(newProject);
   $("#project-select").onchange = action((e) => loadProject(e.target.value));
   $$("[data-tab]").forEach(
     (b) =>
@@ -1349,11 +1448,11 @@ async function initEditor() {
     }
   });
   await refreshProjects();
-  const fromHash = location.hash.slice(1);
-  if (projects.length)
-    await loadProject(
-      projects.some((p) => p.id === fromHash) ? fromHash : projects[0].id,
-    );
+  const requested =
+    new URLSearchParams(location.search).get("timeline") ||
+    location.hash.slice(1);
+  if (requested === "new") await newProject();
+  else if (requested) await loadProject(requested);
   else renderEditor();
 }
 

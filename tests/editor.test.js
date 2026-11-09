@@ -23,7 +23,7 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
     '<meta name="csrf-token" content="test"><body>' +
       html +
       '<div id="toast"></div></body>',
-    { url: "http://localhost/manage" },
+    { url: "http://localhost/manage?timeline=abc" },
   );
   for (const key of [
     "window",
@@ -177,6 +177,8 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
     input.value = String(value);
     input.onchange();
   };
+  assert.equal($("#field-heightAlignment").value, "center");
+  setField("heightAlignment", "bottom");
   setField("captionYear", -1);
   await click('[data-tab="overlays"]');
   await click('#layer-list [data-id="note1"]');
@@ -406,12 +408,23 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   assert.equal(serverDoc.branches[0].fromYear, -1);
   await click('[data-tab="bars"]');
   await click('#layer-list [data-id="egypt"]');
+  await click('[data-tab="events"]');
+  await click('#layer-list [data-id="event1"]');
+  setField("year", -1);
+  setField("endBarId", "egypt");
+  assert.equal($("#field-endEdge").value, "center");
+  setField("endEdge", "bottom");
+  await click('[data-tab="bars"]');
+  await click('#layer-list [data-id="egypt"]');
   const oldStart = Number($("#field-start").value);
   dragElement('#canvas [data-id="egypt"] path', 40, 10);
   assert.equal(Number($("#field-start").value), oldStart);
   dragElement('#canvas [data-id="egypt"] path', 2 * UNIT * fitZoom, 5, true);
   await click("#save");
   assert.equal(serverDoc.branches[0].fromYear, 2);
+  assert.equal(serverDoc.events[0].year, 2);
+  assert.equal(serverDoc.events[0].endBarId, "egypt");
+  assert.equal(serverDoc.bars[0].heightAlignment, "bottom");
   assert.equal(serverDoc.branches[0].toYear, -200);
   assert.equal(
     ordinal(serverDoc.bars[0].heightPeriods[0].start) - ordinal(periodStart),
@@ -420,6 +433,8 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click("#delete-element");
   await click("#save");
   assert.equal(serverDoc.branches.length, 0);
+  assert.equal(serverDoc.events[0].endBarId, undefined);
+  assert.ok(Number.isFinite(serverDoc.events[0].endY));
   await click("#undo");
   await click("#save");
   assert.equal(serverDoc.branches.length, 1);

@@ -29,7 +29,9 @@ empty library. Schema creation is idempotent; it does not reset existing data.
 
 ## Compose and publish
 
-- Use **+** next to the timeline selector to create a composition. Timeline
+- Open **/manage** to choose any draft or published timeline for editing. Use
+  **New timeline** to create a composition, or **+** beside the editor selector.
+  An editor can be linked directly as `/manage?timeline=ID`. Timeline
   settings control title, description, public path, date range, background,
   canvas height, scale placement, and millimeters per year.
 - Add bars from the Bars tab. Set their dates, position, height, foreground and
@@ -39,7 +41,8 @@ empty library. Schema creation is idempotent; it does not reset existing data.
 - In a bar's Properties, use **Add height-change period** to set a start year,
   end year and target height. Each non-overlapping period changes the thickness
   with a smooth cubic spline; the new height remains until the next period.
-  The bar's top position stays anchored. Captions and connections use the same
+  Changes are centered on the bar by default. **Height-change alignment** can
+  instead preserve the top or bottom edge. Captions and connections use the same
   height geometry in the viewer and exports.
 - Use **Branches → Add branch** to connect a year on one bar to a year on another.
   Both bars continue independently. The ribbon uses the bars' endpoint heights and
@@ -61,10 +64,13 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   Uploads are limited to 12 MiB / 20 megapixels. Active SVG uploads are deliberately
   not accepted; rasterize SVG illustrations before uploading.
 - Add Events for vertical lines with independent year, position, height, width,
-  color, caption and under/over placement.
+  color, caption and under/over placement. Choose **End at time bar** and a top,
+  center or bottom endpoint to connect the line to the bar at its event year.
+  The endpoint follows bar movement, height changes and merges; deleting its
+  bar preserves the endpoint as a free position.
 - Select layers or canvas objects to edit them. Drag a bar vertically by default;
   hold **Shift** to also move it in time. Its height-change periods, captions,
-  anchored graphics and branch endpoints move with it. Overlays can be dragged
+  anchored graphics, event lines and branch endpoints move with it. Overlays can be dragged
   freely. Use Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z for undo/redo, Ctrl/Cmd+S to
   save, and Delete to remove a selected element. The inspector offers duplication.
 - Zoom horizontally with the controls or Ctrl/Cmd+scroll. Bar heights, vertical
@@ -102,7 +108,13 @@ Existing timelines keep their current base text until edited.
 Years use historical numbering: `-1` is 1 BCE, `1` is 1 CE. There is **no year
 zero**. Their positions are one year apart. Bar and fade durations count elapsed
 years across this boundary. `ordinal()` in Python and JavaScript implements this
-mapping consistently.
+mapping consistently. Dates from −1 trillion to +1 trillion years are supported.
+For geological timelines, enter the actual year (for example `-65000000`), then
+choose **Millions of years** for timescale labels. **Thousands of years** and
+automatic labels are also available. Canvas coordinates and tick density adapt
+to the date range, keeping long spans practical to view and edit. Print scale is
+entered in millimeters per selected unit (for example 10 mm per million years);
+the document always stores `mmPerYear`, and changing label units preserves it.
 
 **SVG** is a standalone vector export with embedded illustration data and physical
 width/height in millimeters. The horizontal year distance exactly matches the

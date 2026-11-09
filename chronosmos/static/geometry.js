@@ -41,7 +41,15 @@ export function heightAt(bar, at) {
 }
 export function sectionAt(d, bar, at, seen = new Set()) {
   const base = heightAt(bar, at);
-  const own = { y: bar.y, height: base.height, dy: 0, dh: base.dh };
+  const factor = { top: 0, center: 0.5, bottom: 1 }[
+    bar.heightAlignment ?? "center"
+  ];
+  const own = {
+    y: bar.y + factor * (bar.height - base.height),
+    height: base.height,
+    dy: -factor * base.dh,
+    dh: base.dh,
+  };
   const target = d.bars.find((b) => b.id === bar.mergeInto);
   const duration = target
     ? Math.min(bar.mergeYears, atYear(bar.end) - atYear(bar.start))
@@ -64,9 +72,9 @@ export function sectionAt(d, bar, at, seen = new Set()) {
     blend = t * t * (3 - 2 * t);
   const derivative = (6 * t * (1 - t)) / (duration * (1.5 - 3 * t + 3 * t * t));
   return {
-    y: bar.y + (to.y - bar.y) * blend,
+    y: own.y + (to.y - own.y) * blend,
     height: base.height + (to.height - base.height) * blend,
-    dy: (to.y - bar.y) * derivative,
+    dy: own.dy * (1 - blend) + (to.y - own.y) * derivative,
     dh: base.dh * (1 - blend) + (to.height - base.height) * derivative,
   };
 }

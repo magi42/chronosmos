@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 import {
   heightAt,
+  sectionAt,
   barSectionAt,
   ribbonPath,
   branchRibbon,
@@ -25,6 +26,7 @@ const sample = JSON.parse(
 );
 const fixture = () => {
   const doc = structuredClone(sample);
+  doc.bars[0].heightAlignment = "top";
   doc.bars[0].heightPeriods = [
     { id: "p1", start: -100, end: 100, height: 72 },
     { id: "p2", start: 200, end: 300, height: 20 },
@@ -144,4 +146,25 @@ test("text wrapping uses available measured width and splits long words without 
   assert.ok(long.every((line) => measure(line) <= 24));
   assert.deepEqual(wrappedLines("a\n\nb", 48, 14, measure), ["a", "", "b"]);
   assert.ok(textWidth("iiiiiiii", 14) < textWidth("WWWWWWWW", 14));
+});
+
+test("height changes default to centered and can preserve the top or bottom edge", () => {
+  const doc = fixture(),
+    bar = doc.bars[0];
+  for (const alignment of [undefined, "center", "top", "bottom"]) {
+    if (alignment) bar.heightAlignment = alignment;
+    else delete bar.heightAlignment;
+    for (const year of [-100, -1, 100, 250, 300]) {
+      const section = barSectionAt(doc, bar, year);
+      if (!alignment || alignment === "center")
+        assert.equal(section.y + section.height / 2, bar.y + bar.height / 2);
+      else if (alignment === "top") assert.equal(section.y, bar.y);
+      else assert.equal(section.y + section.height, bar.y + bar.height);
+      const epsilon = 0.0001;
+      const at = ordinal(year);
+      const a = sectionAt(doc, bar, at - epsilon),
+        b = sectionAt(doc, bar, at + epsilon);
+      assert.ok(Math.abs((b.y - a.y) / (2 * epsilon) - section.dy) < 0.00001);
+    }
+  }
 });

@@ -436,6 +436,7 @@ input[type="color"] {
   min-width: 0;
 }
 .project-picker select {
+  min-width: 0;
   border: 0;
   background: transparent;
   font-family: var(--serif);
@@ -1293,7 +1294,7 @@ dialog .dialog-close {
   .editor-layout {
     height: calc(100dvh - 161px);
     grid-template-columns: 135px minmax(0, 1fr);
-    grid-template-rows: minmax(260px, 1fr) 270px;
+    grid-template-rows: minmax(min(260px, 100%), 1fr) 270px;
     min-height: 560px;
   }
   .layers-panel {
@@ -1478,4 +1479,49 @@ dialog .dialog-close {
     margin: 0;
     background: white;
   }
+}
+
+[hidden] {
+  display: none !important;
+}
+.timeline-chooser {
+  max-width: 1100px;
+  margin: 52px auto;
+  padding: 0 28px;
+}
+.chooser-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 32px;
+}
+.managed-timelines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 20px;
+}
+.managed-timeline {
+  display: block;
+  padding: 24px;
+  border: 1px solid var(--border, #d5d1c5);
+  border-radius: 8px;
+  background: #fffdf8;
+  color: inherit;
+  text-decoration: none;
+}
+.managed-timeline:hover {
+  border-color: #315d50;
+}
+.managed-timeline strong {
+  display: block;
+  font-size: 22px;
+  margin-bottom: 16px;
+}
+.managed-timeline p {
+  color: #69685f;
+}
+.managed-timeline small {
+  overflow-wrap: anywhere;
 }

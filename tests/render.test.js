@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 import { textFor } from "../chronosmos/static/content.js";
 import {
+  yearLabel,
+  eventEndY,
+  pixelsPerYear,
   ordinal,
   historical,
   dimensions,
@@ -309,4 +312,78 @@ test("anchors follow the same cubic merge ribbon as the displayed time bar", () 
     offsetY: -25,
   };
   assert.ok(Math.abs(overlayPosition(doc, overlay).y - 217.5) < 1e-6);
+});
+
+test("million-year scales remain bounded, keep print distances exact, and localize labels", () => {
+  for (const [start, end] of [
+    [-65000000, 1],
+    [-4500000000, 2026],
+    [-1e12, 1e12],
+  ]) {
+    const doc = {
+      ...sample,
+      start,
+      end,
+      timeUnit: "millions",
+      mmPerYear: 0.00001,
+      bars: [],
+      overlays: [],
+      events: [],
+    };
+    const dim = dimensions(doc);
+    assert.ok(dim.width < 5000 && dim.width > 128);
+    const years = 1000000;
+    assert.ok(
+      Math.abs(
+        ((xFor(doc, start + years) - xFor(doc, start)) / dim.width) *
+          dim.widthMm -
+          years * doc.mmPerYear,
+      ) < 1e-5,
+    );
+    const svg = parse(renderTimeline(doc, { horizontalScale: 32 }));
+    assert.ok(svg.querySelectorAll("line").length < 25000);
+    assert.ok(!svg.documentElement.outerHTML.includes("NaN"));
+    assert.ok(
+      [...svg.querySelectorAll("text")].every((e) => e.textContent !== "0"),
+    );
+    assert.ok(pixelsPerYear(doc) < 0.45);
+  }
+  assert.equal(yearLabel(-65000000, "en", "millions"), "65 M BCE");
+  assert.equal(yearLabel(-65000000, "fi", "millions"), "65 milj. eaa.");
+  assert.equal(yearLabel(1, "en", "millions"), "1");
+  assert.equal(yearLabel(-1000, "en", "thousands"), "1 k BCE");
+});
+
+test("event endpoints attach to the actual bar section, follow movement, and allow upward lines", () => {
+  const doc = structuredClone(sample),
+    bar = doc.bars.find((b) => b.id === "greek");
+  bar.heightPeriods = [{ id: "grow", start: -400, end: -100, height: 70 }];
+  const event = { ...doc.events[0], year: -200, y: 600, endBarId: bar.id };
+  doc.events = [event];
+  for (const [edge, fraction] of [
+    ["top", 0],
+    ["center", 0.5],
+    ["bottom", 1],
+  ]) {
+    event.endEdge = edge;
+    const section = barSectionAt(doc, bar, event.year);
+    assert.equal(eventEndY(doc, event), section.y + section.height * fraction);
+    for (const horizontalScale of [0.5, 4]) {
+      const svg = parse(
+        renderTimeline(doc, { horizontalScale, interactive: true }),
+      );
+      const line = svg.querySelector(`[data-id="${event.id}"] line`);
+      assert.equal(Number(line.getAttribute("y2")), eventEndY(doc, event));
+      assert.ok(
+        Number(line.getAttribute("y2")) < Number(line.getAttribute("y1")),
+      );
+    }
+  }
+  const before = eventEndY(doc, event);
+  doc.bars.find((b) => b.id === "roman").y += 20;
+  assert.ok(eventEndY(doc, event) > before);
+  const absolute = eventEndY(doc, event);
+  delete event.endBarId;
+  event.endY = absolute;
+  assert.equal(eventEndY(doc, event), absolute);
 });

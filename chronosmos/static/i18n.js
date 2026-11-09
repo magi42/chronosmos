@@ -1,5 +1,19 @@
 export const translations = {
   en: {
+    manageIntro: "Open a draft or create a new timeline.",
+    timeUnit: "Timescale labels",
+    auto: "Automatic",
+    years: "Years",
+    thousands: "Thousands of years",
+    millions: "Millions of years",
+    mmPerMillion: "Millimeters per million years",
+    mmPerThousand: "Millimeters per thousand years",
+    center: "Center",
+    heightAlignment: "Height-change alignment",
+    endBar: "End at time bar",
+    endEdge: "Endpoint in bar",
+    endPosition: "End vertical position",
+
     branches: "Branches",
     branch: "Branch",
     addBranch: "+ Add branch",
@@ -127,7 +141,8 @@ export const translations = {
     duplicate: "Duplicate",
     delete: "Delete",
     deleteTimeline: "Delete timeline",
-    dateHint: "Use negative years for BCE. There is no year 0.",
+    dateHint:
+      "Enter years, e.g. −65000000 for 65 million BCE. There is no year 0.",
     printHint:
       "The SVG export preserves this physical scale. Print at 100%, without fitting to page.",
     pathHint:
@@ -182,7 +197,7 @@ export const translations = {
     deleteMedia: "Delete illustration",
     referenceNote: "Illustrative composition",
     newPath: "untitled",
-    emptyLibrary: "Create your first timeline using the + button.",
+    emptyLibrary: "Create your first timeline with New timeline.",
     publicationNote: "Publishing makes this composition visible to everyone.",
     printTitle: "Print timeline",
     copy: "Copy",
@@ -195,6 +210,20 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    manageIntro: "Avaa luonnos tai luo uusi aikajana.",
+    timeUnit: "Aika-asteikon merkinnät",
+    auto: "Automaattinen",
+    years: "Vuodet",
+    thousands: "Tuhannet vuodet",
+    millions: "Miljoonat vuodet",
+    mmPerMillion: "Millimetriä miljoonassa vuodessa",
+    mmPerThousand: "Millimetriä tuhannessa vuodessa",
+    center: "Keskellä",
+    heightAlignment: "Korkeuden muutoksen kohdistus",
+    endBar: "Päätä aikapalkkiin",
+    endEdge: "Päätepiste palkissa",
+    endPosition: "Päätepisteen pystysijainti",
+
     branches: "Haarat",
     branch: "Haara",
     addBranch: "+ Lisää haara",
@@ -321,7 +350,8 @@ export const translations = {
     duplicate: "Monista",
     delete: "Poista",
     deleteTimeline: "Poista aikajana",
-    dateHint: "Negatiiviset vuodet ovat eaa. Vuotta 0 ei ole.",
+    dateHint:
+      "Anna vuodet: esim. −65000000 on 65 miljoonaa eaa. Vuotta 0 ei ole.",
     printHint:
       "SVG-vienti säilyttää fyysisen mittakaavan. Tulosta 100 % koossa sovittamatta sivulle.",
     pathHint: "Julkaisu polussa /{slug}. Tallennus ei muuta julkista versiota.",
@@ -375,7 +405,7 @@ export const translations = {
     deleteMedia: "Poista kuva",
     referenceNote: "Havainnollistava sommitelma",
     newPath: "nimeton",
-    emptyLibrary: "Luo ensimmäinen aikajana pluspainikkeella.",
+    emptyLibrary: "Luo ensimmäinen aikajana Uusi aikajana -painikkeella.",
     publicationNote: "Julkaisemisen jälkeen sommitelma näkyy kaikille.",
     printTitle: "Tulosta aikajana",
     copy: "Kopio",

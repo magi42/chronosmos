@@ -44,3 +44,42 @@ def test_height_periods_and_arbitrary_branches_survive_publication(client, auth)
     result = client.post(f'/api/timelines/{ident}/publish',json=dict(published=True,revision=1),headers=auth)
     assert result.status_code == 200
     assert client.get(f'/api/timelines/{ident}').json['document'] == doc
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda d: d['bars'][0].update(heightAlignment='invalid'),
+    lambda d: d['events'][0].update(endBarId='missing'),
+    lambda d: d['events'][0].update(endBarId='egypt',year=2026),
+    lambda d: d['events'][0].update(endEdge='invalid'),
+    lambda d: d['events'][0].update(endY=float('inf')),
+    lambda d: d.update(timeUnit='invalid'),
+    lambda d: d.update(start=-10**12-1),
+    lambda d: d.update(mmPerYear=1e-13),
+])
+def test_invalid_new_scale_and_endpoint_settings(client, auth, mutation):
+    doc = document()
+    mutation(doc)
+    assert client.post('/api/timelines', json=doc, headers=auth).status_code == 400
+
+
+def test_geological_scale_alignment_and_event_targets_survive_publication(client, auth):
+    doc = document()
+    doc.update(start=-4500000000, timeUnit='millions', mmPerYear=1e-8)
+    doc['bars'][0].update(start=-65000000, heightAlignment='bottom')
+    doc['events'][0].update(year=-1, endBarId='egypt', endEdge='center')
+    created = client.post('/api/timelines', json=doc, headers=auth)
+    assert created.status_code == 201
+    ident = created.json['id']
+    assert client.post(f'/api/timelines/{ident}/publish', json=dict(published=True,revision=1), headers=auth).status_code == 200
+    assert client.get(f'/api/timelines/{ident}').json['document'] == doc
+
+
+def test_manage_preserves_only_timeline_parameter_through_login(client):
+    response = client.get('/manage?timeline=example&next=https://example.com')
+    assert response.location == '/manage/login?timeline=example'
+    client.get(response.location)
+    with client.session_transaction() as session:
+        token = session['csrf']
+    response = client.post('/manage/login?timeline=example&next=https://example.com', data=dict(username='editor',password='a long test password',csrf=token))
+    assert response.location == '/manage?timeline=example'
+    assert b'id="timeline-chooser"' in client.get('/manage').data

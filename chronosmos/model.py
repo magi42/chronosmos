@@ -2,6 +2,8 @@
 import math
 import re
 
+MAX_YEAR = 10**12
+
 
 def ordinal(year):
     if not isinstance(year, int) or isinstance(year, bool) or year == 0:
@@ -26,7 +28,7 @@ def validate(doc):
         return v
 
     def year(obj, key):
-        v = num(obj, key, -100000, 100000)
+        v = num(obj, key, -MAX_YEAR, MAX_YEAR)
         ordinal(v)
         return v
 
@@ -55,7 +57,9 @@ def validate(doc):
     start, end = year(doc, 'start'), year(doc, 'end')
     if ordinal(end) <= ordinal(start):
         raise ValueError('End year must be after start year.')
-    num(doc, 'mmPerYear', .01, 100)
+    num(doc, 'mmPerYear', 1e-12, 100)
+    if doc.get('timeUnit', 'auto') not in ('auto', 'years', 'thousands', 'millions'):
+        raise ValueError('Invalid time unit.')
     num(doc, 'height', 200, 4000)
     color(doc, 'background')
     if doc.get('scale') not in ('top', 'bottom', 'both', 'none'):
@@ -83,8 +87,10 @@ def validate(doc):
         num(b, 'height', 4, 160)
         color(b, 'background')
         color(b, 'foreground')
-        num(b, 'fadeIn', 0, 100000)
-        num(b, 'fadeOut', 0, 100000)
+        num(b, 'fadeIn', 0, 2 * MAX_YEAR)
+        num(b, 'fadeOut', 0, 2 * MAX_YEAR)
+        if b.get('heightAlignment', 'center') not in ('top', 'center', 'bottom'):
+            raise ValueError('Invalid height alignment.')
         if 'captionYear' in b:
             caption = year(b, 'captionYear')
             if not ordinal(a) <= ordinal(caption) <= ordinal(z):
@@ -164,6 +170,15 @@ def validate(doc):
         translations(e, {'label': 250})
         num(e, 'y', 0, doc['height'])
         num(e, 'height', 1, doc['height'])
+        if 'endY' in e:
+            num(e, 'endY', -4000, 8000)
+        endpoint = text(e, 'endBarId', 80, False)
+        if endpoint:
+            bar = bar_ids.get(endpoint)
+            if not bar or not ordinal(bar['start']) <= ordinal(e['year']) <= ordinal(bar['end']):
+                raise ValueError('The event endpoint needs a time bar active at the event year.')
+        if e.get('endEdge', 'center') not in ('top', 'center', 'bottom'):
+            raise ValueError('Invalid event endpoint alignment.')
         num(e, 'width', .25, 20)
         color(e, 'color')
         if e.get('layer') not in ('under', 'over'):
