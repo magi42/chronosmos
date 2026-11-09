@@ -19,7 +19,7 @@ def sync(root):
     readme_path = root / 'README.md'
     if not (root / 'AGENTS.md').is_file() or not readme_path.is_file():
         raise ValueError('Expected the UpCloud configuration repository with AGENTS.md and README.md.')
-    files = sorted(source.iterdir())
+    files = sorted(item for item in source.iterdir() if item.is_file())
     for item in files:
         destination = target / item.name
         if destination.exists() and destination.read_bytes() != item.read_bytes():
