@@ -1,10 +1,10 @@
 export const translations = {
   en: {
-    contentTranslations: "Translations",
+    textLanguage: "Text language",
     englishBase: "English (base)",
     finnish: "Finnish",
-    translationHint:
-      "English is the base. Leave Finnish blank to use English. Use the language button to preview.",
+    englishFallback:
+      "Leave Finnish blank to use English. Use the page language button to preview.",
     atlas: "AN ATLAS OF TIME",
     perspective: "HISTORY, IN PERSPECTIVE",
     introTitle: "Every story has a timeline.",
@@ -176,11 +176,11 @@ export const translations = {
     original: "Original size",
   },
   fi: {
-    contentTranslations: "Käännökset",
+    textLanguage: "Tekstin kieli",
     englishBase: "Englanti (peruskieli)",
     finnish: "Suomi",
-    translationHint:
-      "Englanti on peruskieli. Tyhjä suomennos näyttää englanninkielisen tekstin. Esikatsele kielipainikkeella.",
+    englishFallback:
+      "Tyhjä suomennos näyttää englanninkielisen tekstin. Esikatsele sivun kielipainikkeella.",
     atlas: "AJAN KARTASTO",
     perspective: "HISTORIAA PERSPEKTIIVISSÄ",
     introTitle: "Jokaisella tarinalla on aikajanansa.",

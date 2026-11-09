@@ -897,28 +897,19 @@ input[type="color"] {
   color: #999e8a;
   margin: 10px 0 0;
 }
-.field-language {
-  font-weight: 400;
-  color: var(--muted);
-  font-size: 9px;
+.content-field > label {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: #777f6d;
+  margin-bottom: 7px;
 }
-.translation-fields {
-  margin: 0 0 20px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+.content-field .text-language-select {
   background: #f0f2e9;
-}
-.translation-fields summary {
-  cursor: pointer;
-  font-size: 11px;
   color: var(--green);
-}
-.translation-fields[open] summary {
-  margin-bottom: 10px;
-}
-.translation-fields .field:last-child {
-  margin-bottom: 0;
+  font-size: 10px;
+  margin-bottom: 7px;
+  padding: 6px 9px;
 }
 dialog {
   border: 1px solid #dedfd4;

@@ -235,13 +235,37 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   assert.equal($("#field-label").value, "New time bar");
   await click("#redo");
   assert.equal($("#field-label").value, "An edited bar");
+  const chooseTextLanguage = (key, locale) => {
+    const select = $("#language-" + key);
+    assert.ok(select);
+    assert.deepEqual(
+      [...select.options].map((o) => o.value),
+      ["en", "fi"],
+    );
+    assert.ok(
+      select.compareDocumentPosition($("#field-" + key)) &
+        dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    select.value = locale;
+    select.onchange();
+  };
+  const savedStatus = $("#save-status").textContent;
+  chooseTextLanguage("label", "fi");
+  assert.equal($("#field-label").value, "");
+  assert.equal($("#field-label").placeholder, "An edited bar");
+  assert.equal($("#field-label").lang, "fi");
+  assert.equal($("#save-status").textContent, savedStatus);
+  chooseTextLanguage("label", "en");
+  assert.equal($("#field-label").value, "An edited bar");
   const setTranslation = (key, value) => {
-    const input = $("#translation-fi-" + key);
+    chooseTextLanguage(key, "fi");
+    const input = $("#field-" + key);
     assert.ok(input);
     input.value = value;
     input.onchange();
   };
   setTranslation("label", "Muokattu aikapalkki");
+  chooseTextLanguage("label", "en");
   assert.equal($("#field-label").value, "An edited bar");
   await click(".language");
   assert.equal($("#inspector h2").textContent, "Muokattu aikapalkki");
@@ -250,7 +274,11 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   assert.equal($("#inspector h2").textContent, "An edited bar");
   await click("#undo");
   assert.equal($("#inspector h2").textContent, "Muokattu aikapalkki");
+  assert.equal($("#language-label").value, "fi");
+  assert.equal($("#field-label").value, "Muokattu aikapalkki");
   await click(".language");
+  assert.equal($("#language-label").value, "fi");
+  chooseTextLanguage("label", "en");
   await click("#save");
   assert.equal(serverDoc.bars.at(-1).label, "An edited bar");
   assert.equal(
@@ -272,6 +300,21 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   assert.equal(document.documentElement.lang, "fi");
   assert.equal($("#save").textContent, "Tallenna luonnos");
   await click("#document-settings");
+  assert.equal($("#language-title").value, "en");
+  assert.equal($("#language-description").value, "en");
+  assert.equal($("#language-slug"), null);
+  chooseTextLanguage("title", "fi");
+  $("#field-title").value = "Suomenkielinen aikajana";
+  // Switching must keep a pending edit even before the input's change event.
+  chooseTextLanguage("title", "en");
+  assert.equal($("#field-title").value, sample.title);
+  chooseTextLanguage("title", "fi");
+  assert.equal($("#field-title").value, "Suomenkielinen aikajana");
+  assert.equal($("#language-description").value, "en");
+  chooseTextLanguage("description", "fi");
+  assert.equal($("#field-description").value, "");
+  assert.equal($("#field-description").placeholder, sample.description);
+  assert.equal($("#language-title").value, "fi");
   const start = $("#field-start");
   start.value = "0";
   start.onchange();
@@ -310,5 +353,36 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click('[data-tab="overlays"]');
   await click('[data-add="text"]');
   assert.equal($("#field-text").value, "Your story here");
+  assert.equal($("#language-text").value, "en");
+  setTranslation("text", "Uusi teksti");
+  chooseTextLanguage("text", "en");
+  assert.equal($("#field-text").value, "Your story here");
+  await click("#save");
+  assert.equal(serverDoc.overlays.at(-1).translations.fi.text, "Uusi teksti");
+  chooseTextLanguage("text", "fi");
+  $("#field-text").value = "Tallennettu suoraan kentästä";
+  await click("#save");
+  assert.equal(
+    serverDoc.overlays.at(-1).translations.fi.text,
+    "Tallennettu suoraan kentästä",
+  );
+  await click('[data-add="box"]');
+  assert.equal($("#language-text").value, "en");
+  setTranslation("text", "Laatikon teksti");
+  await click('[data-tab="events"]');
+  await click('[data-add="event"]');
+  assert.equal($("#language-label").value, "en");
+  setTranslation("label", "Tapahtuman teksti");
+  chooseTextLanguage("label", "en");
+  assert.equal($("#field-label").value, "A moment in time");
+  await click("#save");
+  assert.equal(
+    serverDoc.events.at(-1).translations.fi.label,
+    "Tapahtuman teksti",
+  );
+  assert.equal(
+    serverDoc.overlays.at(-1).translations.fi.text,
+    "Laatikon teksti",
+  );
   dom.window.close();
 });

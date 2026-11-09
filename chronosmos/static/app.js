@@ -32,6 +32,8 @@ let doc = null,
   busy = false,
   preview = false;
 let toastTimer;
+let textEditorKey = "";
+const textFieldLanguages = new Map();
 function toast(message, error = false) {
   const e = $("#toast");
   e.textContent = message;
@@ -306,6 +308,7 @@ async function loadProject(id) {
   const data = await api(`/api/timelines/${id}?editor=1`);
   doc = data.document;
   ident = id;
+  textEditorKey = id;
   revision = data.revision;
   published = data.published;
   publishedSlug = data.publishedSlug;
@@ -335,6 +338,7 @@ async function newProject() {
     events: [],
   };
   ident = null;
+  textEditorKey = uid();
   revision = 0;
   published = false;
   publishedSlug = null;
@@ -400,31 +404,28 @@ function renderLayers() {
 }
 function field(key, label, type = "text", value = "", options = {}) {
   const id = "field-" + key;
+  const translatable = ["title", "description", "label", "text"].includes(key);
+  const languageKey = `${textEditorKey}:${selectedItem()?.id ?? "document"}:${key}`;
+  const locale = translatable
+    ? (textFieldLanguages.get(languageKey) ?? "en")
+    : null;
+  const target = selectedItem() || doc;
+  if (locale === "fi") value = target.translations?.fi?.[key] ?? "";
+  const textAttributes = locale
+    ? `data-content-locale="${locale}" lang="${locale}" ${locale === "fi" ? `placeholder="${esc(target[key])}"` : ""}`
+    : "";
   let control;
   if (type === "select")
     control = `<select id="${id}" data-field="${key}">${options.choices.map(([v, l]) => `<option value="${esc(v)}" ${String(value) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
   else if (type === "textarea")
-    control = `<textarea id="${id}" data-field="${key}" rows="${options.rows || 3}" maxlength="${options.maxLength || 4000}">${esc(value)}</textarea>`;
+    control = `<textarea id="${id}" data-field="${key}" ${textAttributes} rows="${options.rows || 3}" maxlength="${options.maxLength || 4000}">${esc(value)}</textarea>`;
   else
-    control = `<input id="${id}" data-field="${key}" type="${type}" value="${esc(value)}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${type === "number" ? `step="${options.step || 1}"` : ""} ${type === "text" ? `maxlength="${options.maxLength || 250}"` : ""}>`;
-  const baseLanguage = ["title", "description", "label", "text"].includes(key)
-    ? ` <span class="field-language">${esc(t("englishBase"))}</span>`
-    : "";
-  return `<label class="field ${type === "color" ? "color-field" : ""}" for="${id}"><span>${esc(t(label))}${baseLanguage}</span>${control}${options.hint ? `<small>${esc(options.hint)}</small>` : ""}</label>`;
-}
-function translationFields(target, keys) {
-  const values = target.translations?.fi ?? {};
-  const limits = { title: 160, description: 4000, label: 250, text: 4000 };
-  return `<details class="translation-fields" ${keys.some((k) => values[k]?.trim()) ? "open" : ""}><summary>${esc(t("contentTranslations"))}</summary><p class="field-note">${esc(t("translationHint"))}</p>${keys
-    .map((key) => {
-      const id = "translation-fi-" + key;
-      const attrs = `id="${id}" data-translation-field="${key}" maxlength="${limits[key]}" placeholder="${esc(target[key])}"`;
-      const input = ["text", "description"].includes(key)
-        ? `<textarea ${attrs} rows="3">${esc(values[key] ?? "")}</textarea>`
-        : `<input ${attrs} value="${esc(values[key] ?? "")}">`;
-      return `<label class="field" for="${id}"><span>${esc(t(key))} · ${esc(t("finnish"))}</span>${input}</label>`;
-    })
-    .join("")}</details>`;
+    control = `<input id="${id}" data-field="${key}" ${textAttributes} type="${type}" value="${esc(value)}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${type === "number" ? `step="${options.step || 1}"` : ""} ${type === "text" ? `maxlength="${options.maxLength || 250}"` : ""}>`;
+  if (translatable) {
+    const selector = `<select id="language-${key}" class="text-language-select" data-text-language="${esc(languageKey)}" data-text-field="${key}" aria-label="${esc(t(label) + " · " + t("textLanguage"))}"><option value="en" ${locale === "en" ? "selected" : ""}>${esc(t("englishBase"))}</option><option value="fi" ${locale === "fi" ? "selected" : ""}>${esc(t("finnish"))}</option></select>`;
+    return `<div class="field content-field"><label for="${id}">${esc(t(label))}</label>${selector}${control}${locale === "fi" ? `<small>${esc(t("englishFallback"))}</small>` : ""}</div>`;
+  }
+  return `<label class="field ${type === "color" ? "color-field" : ""}" for="${id}"><span>${esc(t(label))}</span>${control}${options.hint ? `<small>${esc(options.hint)}</small>` : ""}</label>`;
 }
 function renderInspector() {
   const el = $("#inspector");
@@ -446,7 +447,6 @@ function renderInspector() {
         hint: t("pathHint").replace("{slug}", doc.slug),
       }) +
       field("description", "description", "textarea", doc.description) +
-      translationFields(doc, ["title", "description"]) +
       `<div class="field-pair">${number("start", "start", doc.start, -100000, 100000)}${number("end", "end", doc.end, -100000, 100000)}</div><p class="field-note">${esc(t("dateHint"))}</p><div class="inspector-divider"></div>` +
       number("mmPerYear", "mmPerYear", doc.mmPerYear, 0.01, 100, 0.01) +
       `<p class="field-note">${esc(t("printHint"))}</p>` +
@@ -462,7 +462,6 @@ function renderInspector() {
     if (kind === "bars") {
       html +=
         field("label", "label", "text", o.label) +
-        translationFields(o, ["label"]) +
         number(
           "captionYear",
           "captionYear",
@@ -497,10 +496,7 @@ function renderInspector() {
             )
           : "");
     } else if (kind === "overlays") {
-      if (o.type !== "image")
-        html +=
-          field("text", "text", "textarea", o.text) +
-          translationFields(o, ["text"]);
+      if (o.type !== "image") html += field("text", "text", "textarea", o.text);
       else
         html += `<img class="inspector-image" src="/media/${o.mediaId}.png" alt="${esc(t("selectedMedia"))}">${button("changeImage", 'id="change-image"')}`;
       const anchor = doc.bars.find((b) => b.id === o.anchorBarId);
@@ -534,7 +530,6 @@ function renderInspector() {
     } else
       html +=
         field("label", "label", "text", o.label) +
-        translationFields(o, ["label"]) +
         number("year", "year", o.year, -100000, 100000) +
         number("y", "y", o.y, 0, doc.height) +
         number("height", "height", o.height, 1, doc.height) +
@@ -549,26 +544,47 @@ function renderInspector() {
     html += `<div class="inspector-divider"></div><div class="element-actions">${button("duplicate", 'id="duplicate"')}${button("delete", 'id="delete-element" class="danger-text"')}</div>`;
   }
   el.innerHTML = html;
-  el.querySelectorAll("[data-translation-field]").forEach(
-    (input) =>
-      (input.onchange = () => {
-        if (!input.reportValidity()) return;
-        const target = o || doc,
-          key = input.dataset.translationField,
-          value = input.value;
-        change(() => {
-          if (value.trim()) {
-            target.translations ??= {};
-            target.translations.fi ??= {};
-            target.translations.fi[key] = value;
-          } else if (target.translations?.fi) {
-            delete target.translations.fi[key];
-            if (!Object.keys(target.translations.fi).length)
-              delete target.translations.fi;
-            if (!Object.keys(target.translations).length)
-              delete target.translations;
-          }
-        });
+  const commitContent = (input) => {
+    if (!input.reportValidity()) return;
+    const target = o || doc,
+      key = input.dataset.field,
+      locale = input.dataset.contentLocale,
+      value = input.value;
+    const previous =
+      locale === "en" ? target[key] : (target.translations?.fi?.[key] ?? "");
+    if (value === previous) return;
+    checkpoint();
+    if (locale === "en") target[key] = value;
+    else if (value.trim()) {
+      target.translations ??= {};
+      target.translations.fi ??= {};
+      target.translations.fi[key] = value;
+    } else if (target.translations?.fi) {
+      delete target.translations.fi[key];
+      if (!Object.keys(target.translations.fi).length)
+        delete target.translations.fi;
+      if (!Object.keys(target.translations).length) delete target.translations;
+    }
+    if (locale === "fi" && !value.trim()) input.value = "";
+    renderCanvas();
+    renderLayers();
+    renderProjectPicker();
+    updateStatus();
+    if (o)
+      el.querySelector("h2").textContent =
+        textFor(o, "label", language) ||
+        textFor(o, "text", language).split("\n")[0] ||
+        t(o.type);
+  };
+  el.querySelectorAll("[data-text-language]").forEach(
+    (select) =>
+      (select.onchange = () => {
+        const locale = select.value;
+        commitContent(
+          el.querySelector(`[data-field="${select.dataset.textField}"]`),
+        );
+        textFieldLanguages.set(select.dataset.textLanguage, locale);
+        renderInspector();
       }),
   );
   el.querySelectorAll("[data-field]").forEach(
@@ -578,6 +594,10 @@ function renderInspector() {
         const target = o || doc,
           key = input.dataset.field;
         let value = input.type === "number" ? Number(input.value) : input.value;
+        if (input.dataset.contentLocale) {
+          commitContent(input);
+          return;
+        }
         if (
           ["start", "end", "year", "captionYear"].includes(key) &&
           value === 0
@@ -755,6 +775,9 @@ function addElement(type, media = null) {
 }
 async function saveDraft() {
   if (!doc) return;
+  $("#inspector")
+    .querySelectorAll("[data-content-locale]")
+    .forEach((input) => input.onchange?.());
   const snapshot = raw();
   if (!dirty() && ident) return;
   let result;
@@ -1106,6 +1129,7 @@ async function initEditor() {
     if (dirty() && !(await confirmAction(t("leaveQuestion")))) return;
     doc = validated.document;
     ident = null;
+    textEditorKey = uid();
     revision = 0;
     published = false;
     publishedSlug = null;

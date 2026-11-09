@@ -73,10 +73,12 @@ supported language preference. The language button stores an explicit preference
 The public timeline title, description and back navigation share a compact page
 header so the timeline has more room.
 
-English is the base language for authored content. In Properties, open
-**Translations** to add Finnish versions of the title, description, bar captions,
-text and boxes, or event labels. Leave a translation blank to show its English
-base. Use the language button to preview the chosen language. The same per-field
+English is the base language for authored content. In Properties, choose
+**English (base)** or **Finnish** from the language selector above each title,
+description, caption, text/box or event-label input. Each field selects its editing
+language independently; switching preserves the text in both languages. Leave a
+Finnish translation blank to show English. Use the page language button to preview
+the chosen display language. The same per-field
 fallback applies in the library, public viewer, editor preview and SVG/PNG/PDF
 exports. JSON exports preserve the English fields and all translations together.
 Existing timelines keep their current base text until edited.
