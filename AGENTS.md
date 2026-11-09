@@ -6,6 +6,10 @@
   Preserve actual SVG millimeter dimensions and embedded export illustrations.
 - Timeline zoom changes only the horizontal time scale. Keep vertical positions,
   bar heights, text sizes and illustration proportions fixed, including while dragging.
+- Optional `captionYear` positions bar captions. Overlay `anchorBarId`, `year`
+  and `offsetY` bind graphics to a year on a bar; preserve the absolute `y` fallback.
+  Whole-bar moves shift anchor years and captions using historical ordinals;
+  detaching or deleting the parent bar preserves the overlay's displayed position.
 - Editor access is provisioned server-side through the CLI. Do not add public
   registration, default credentials, or a public login link without a user request.
 - Saving a draft must not change a published composition or its public path.

@@ -158,6 +158,13 @@ käyttäjät, julkiset polut ja kuvat.
 
 ## Sovellusjulkaisun palautus
 
+Aikajanamuodon 1 valinnaiset `captionYear`- sekä `anchorBarId`/`offsetY`-kentät
+mahdollistavat otsikon siirron ja grafiikan kiinnityksen palkkiin. Uusi julkaisu
+lukee vanhat aikajanat ilman tietomigraatiota. Näitä kenttiä edeltävä julkaisu
+ei osaa näyttää tai muokata uusia sijoituksia oikein; käytä niitä tukevaa
+julkaisua, kun uusia ominaisuuksia on tallennettu. Tuotantokantaa ei korvata
+kehityskannalla sovelluspäivityksen yhteydessä.
+
 Version 0.1.0 taulut ovat yhteiset kaikille sen korjausjulkaisuille.
 Älä palauta tulevaa skeemaa ymmärtämättömään julkaisuun ilman vastaavaa
 kantapalautusta. Pelkkä nykyisen version symlinkkipalautus:

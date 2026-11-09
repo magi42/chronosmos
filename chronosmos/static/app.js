@@ -1,6 +1,9 @@
 import { t, language, translate, toggleLanguage } from "./i18n.js";
 import {
   renderTimeline,
+  overlayPosition,
+  barSectionAt,
+  clampYearToBar,
   dimensions,
   ordinal,
   historical,
@@ -95,7 +98,24 @@ function checkpoint() {
 function change(fn) {
   checkpoint();
   fn();
+  normalizeAttachments();
   renderEditor();
+}
+function normalizeAttachments() {
+  for (const bar of doc.bars) {
+    if (bar.captionYear !== undefined)
+      bar.captionYear = clampYearToBar(bar, bar.captionYear);
+  }
+  for (const overlay of doc.overlays) {
+    const bar = doc.bars.find((b) => b.id === overlay.anchorBarId);
+    if (bar) {
+      overlay.year = clampYearToBar(bar, overlay.year);
+      overlay.y = Math.max(
+        0,
+        Math.min(doc.height, overlayPosition(doc, overlay).y),
+      );
+    }
+  }
 }
 function updateStatus() {
   if (page !== "editor") return;
@@ -413,6 +433,13 @@ function renderInspector() {
     if (kind === "bars") {
       html +=
         field("label", "label", "text", o.label) +
+        number(
+          "captionYear",
+          "captionYear",
+          o.captionYear ?? o.start,
+          o.start,
+          o.end,
+        ) +
         `<div class="field-pair">${number("start", "start", o.start, -100000, 100000)}${number("end", "end", o.end, -100000, 100000)}</div><p class="field-note">${esc(t("dateHint"))}</p>` +
         number("y", "y", o.y, 60, doc.height - 60) +
         number("height", "height", o.height, 4, 160) +
@@ -440,9 +467,25 @@ function renderInspector() {
       if (o.type !== "image") html += field("text", "text", "textarea", o.text);
       else
         html += `<img class="inspector-image" src="/media/${o.mediaId}.png" alt="${esc(t("selectedMedia"))}">${button("changeImage", 'id="change-image"')}`;
+      const anchor = doc.bars.find((b) => b.id === o.anchorBarId);
       html +=
-        number("year", "year", o.year, -100000, 100000) +
-        number("y", "y", o.y, 0, doc.height) +
+        field("anchorBarId", "anchorBar", "select", o.anchorBarId ?? "", {
+          choices: [
+            ["", t("freePosition")],
+            ...doc.bars.map((b) => [b.id, b.label || t("timeBar")]),
+          ],
+          hint: t("anchorHint"),
+        }) +
+        number(
+          "year",
+          anchor ? "anchorYear" : "year",
+          o.year,
+          anchor?.start ?? -100000,
+          anchor?.end ?? 100000,
+        ) +
+        (anchor
+          ? number("offsetY", "offsetY", o.offsetY ?? 0, -4000, 4000, "any")
+          : number("y", "y", o.y, 0, doc.height)) +
         `<div class="field-pair">${number("width", "width", o.width, 10, 2000)}${number("height", "height", o.height, 10, 2000)}</div>`;
       if (o.type !== "image")
         html +=
@@ -473,9 +516,12 @@ function renderInspector() {
         const target = o || doc,
           key = input.dataset.field;
         let value = input.type === "number" ? Number(input.value) : input.value;
-        if (["start", "end", "year"].includes(key) && value === 0) {
+        if (
+          ["start", "end", "year", "captionYear"].includes(key) &&
+          value === 0
+        ) {
           toast(t("noYearZero"), true);
-          input.value = target[key];
+          input.value = target[key] ?? target.start;
           return;
         }
         const candidate = { ...target, [key]: value };
@@ -488,6 +534,18 @@ function renderInspector() {
           return;
         }
         change(() => {
+          if (key === "anchorBarId") {
+            const position = overlayPosition(doc, target);
+            const anchor = doc.bars.find((b) => b.id === value);
+            if (anchor) {
+              target.year = clampYearToBar(anchor, target.year);
+              target.offsetY =
+                position.y - barSectionAt(doc, anchor, target.year).y;
+            } else {
+              target.y = Math.max(0, Math.min(doc.height, position.y));
+              delete target.offsetY;
+            }
+          }
           target[key] = value;
           if (key === "height" && target === doc) {
             doc.bars.forEach((b) => (b.y = Math.min(b.y, doc.height - 60)));
@@ -506,6 +564,8 @@ function renderInspector() {
         const clone = structuredClone(o);
         clone.id = uid();
         clone.y = Math.min(doc.height - 60, clone.y + 42);
+        if (clone.anchorBarId)
+          clone.offsetY = Math.min(4000, (clone.offsetY ?? 0) + 42);
         doc[selected.kind].push(clone);
         selected.id = clone.id;
       });
@@ -513,6 +573,18 @@ function renderInspector() {
     $("#delete-element").onclick = () =>
       change(() => {
         const id = o.id;
+        if (selected.kind === "bars") {
+          for (const overlay of doc.overlays.filter(
+            (overlay) => overlay.anchorBarId === id,
+          )) {
+            overlay.y = Math.max(
+              0,
+              Math.min(doc.height, overlayPosition(doc, overlay).y),
+            );
+            delete overlay.anchorBarId;
+            delete overlay.offsetY;
+          }
+        }
         doc[selected.kind] = doc[selected.kind].filter((i) => i.id !== id);
         doc.bars.forEach((b) => {
           if (b.mergeInto === id) b.mergeInto = "";
@@ -666,6 +738,13 @@ function wireDragging() {
       y: e.clientY,
       before: raw(),
       object: structuredClone(object),
+      caption: kind === "bars" && !!e.target.closest("[data-caption]"),
+      anchors:
+        kind === "bars"
+          ? doc.overlays
+              .filter((o) => o.anchorBarId === id)
+              .map((o) => ({ id: o.id, year: o.year }))
+          : [],
       moved: false,
     };
     $("#canvas").setPointerCapture(e.pointerId);
@@ -678,11 +757,22 @@ function wireDragging() {
     if (!drag) return;
     const dx = (e.clientX - drag.x) / zoom,
       dy = e.clientY - drag.y;
-    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+    if (!drag.moved && Math.abs(dx) + (drag.caption ? 0 : Math.abs(dy)) < 3)
+      return;
     drag.moved = true;
     const o = selectedItem(),
       b = drag.object,
       offset = Math.round(dx / UNIT);
+    if (drag.caption) {
+      const candidate = Math.max(
+        -100000,
+        Math.min(99999, ordinal(b.captionYear ?? b.start) + offset),
+      );
+      o.captionYear = clampYearToBar(o, historical(candidate));
+      renderCanvas();
+      updateStatus();
+      return;
+    }
     o.y = Math.round(
       Math.max(
         drag.kind === "bars" ? 60 : 0,
@@ -697,10 +787,30 @@ function wireDragging() {
         );
       o.start = historical(a);
       o.end = historical(a + length);
-    } else
+      const delta = a - ordinal(b.start);
+      if (b.captionYear !== undefined)
+        o.captionYear = historical(ordinal(b.captionYear) + delta);
+      for (const anchor of drag.anchors) {
+        doc.overlays.find((o) => o.id === anchor.id).year = historical(
+          ordinal(anchor.year) + delta,
+        );
+      }
+    } else {
       o.year = historical(
         Math.max(-100000, Math.min(99999, ordinal(b.year) + offset)),
       );
+      const anchor = doc.bars.find((bar) => bar.id === o.anchorBarId);
+      if (anchor) {
+        o.year = clampYearToBar(anchor, o.year);
+        const top = barSectionAt(doc, anchor, o.year).y;
+        const y = Math.max(
+          0,
+          Math.min(doc.height, top + (b.offsetY ?? 0) + dy),
+        );
+        o.offsetY = y - top;
+      }
+    }
+    normalizeAttachments();
     renderCanvas();
     updateStatus();
   });

@@ -158,6 +158,66 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click("#zoom-fit");
   assert.equal($("#canvas svg").style.height, height);
   assert.ok(width() <= viewport.clientWidth - 64 + 1e-10);
+  const fitZoom = (width() - PAD * 2) / (dimensions(sample).width - PAD * 2);
+  const dragElement = (selector, dx, dy) => {
+    $(selector).dispatchEvent(pointer("pointerdown", 200, 100));
+    $("#canvas").dispatchEvent(pointer("pointermove", 200 + dx, 100 + dy));
+    $("#canvas").dispatchEvent(pointer("pointerup", 200 + dx, 100 + dy));
+  };
+  dragElement('#canvas [data-id="egypt"] [data-caption]', 50, 80);
+  assert.equal(Number($("#field-start").value), sample.bars[0].start);
+  assert.equal(Number($("#field-y").value), sample.bars[0].y);
+  assert.equal(
+    ordinal(Number($("#field-captionYear").value)) -
+      ordinal(sample.bars[0].start),
+    Math.round(50 / fitZoom / UNIT),
+  );
+  const setField = (key, value) => {
+    const input = $("#field-" + key);
+    input.value = String(value);
+    input.onchange();
+  };
+  setField("captionYear", -1);
+  await click('[data-tab="overlays"]');
+  await click('#layer-list [data-id="note1"]');
+  setField("anchorBarId", "egypt");
+  assert.equal(Number($("#field-year").value), sample.bars[0].end);
+  setField("year", -1);
+  setField("offsetY", -30);
+  await click('[data-tab="bars"]');
+  await click('#layer-list [data-id="egypt"]');
+  dragElement('#canvas [data-id="egypt"] path', 2 * UNIT * fitZoom, 40);
+  assert.equal(Number($("#field-captionYear").value), 2);
+  assert.equal(Number($("#field-y").value), sample.bars[0].y + 40);
+  await click('[data-tab="overlays"]');
+  await click('#layer-list [data-id="note1"]');
+  assert.equal($("#field-anchorBarId").value, "egypt");
+  assert.equal(Number($("#field-year").value), 2);
+  assert.equal(Number($("#field-offsetY").value), -30);
+  const anchoredY = Number(
+    $('#canvas [data-id="note1"] text').getAttribute("y"),
+  );
+  setField("anchorBarId", "");
+  assert.equal(
+    Number($('#canvas [data-id="note1"] text').getAttribute("y")),
+    anchoredY,
+  );
+  setField("anchorBarId", "egypt");
+  await click('[data-tab="bars"]');
+  await click('#layer-list [data-id="egypt"]');
+  setField("end", -500);
+  assert.equal(Number($("#field-captionYear").value), -500);
+  await click("#undo");
+  await click("#delete-element");
+  await click('[data-tab="overlays"]');
+  await click('#layer-list [data-id="note1"]');
+  assert.equal($("#field-anchorBarId").value, "");
+  assert.equal(
+    Number($('#canvas [data-id="note1"] text').getAttribute("y")),
+    anchoredY,
+  );
+  await click("#undo");
+  await click('[data-tab="bars"]');
   await click('[data-add="bar"]');
   assert.equal(document.querySelectorAll(".layer-row").length, 9);
   const label = $("#field-label");
@@ -167,6 +227,9 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click("#save");
   assert.equal(serverDoc.bars.length, 9);
   assert.equal(serverDoc.bars.at(-1).label, "An edited bar");
+  assert.equal(serverDoc.bars[0].captionYear, 2);
+  assert.equal(serverDoc.overlays[0].anchorBarId, "egypt");
+  assert.equal(serverDoc.overlays[0].year, 2);
   assert.ok(writes.every((w) => w.headers["X-CSRF-Token"] === "test"));
   await click("#undo");
   assert.equal($("#field-label").value, "New time bar");

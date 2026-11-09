@@ -70,6 +70,10 @@ def validate(doc):
         color(b, 'foreground')
         num(b, 'fadeIn', 0, 100000)
         num(b, 'fadeOut', 0, 100000)
+        if 'captionYear' in b:
+            caption = year(b, 'captionYear')
+            if not ordinal(a) <= ordinal(caption) <= ordinal(z):
+                raise ValueError('Caption year must be within its time bar.')
     for b in bars:
         a, z = b['start'], b['end']
         merge = text(b, 'mergeInto', 80, False)
@@ -92,6 +96,14 @@ def validate(doc):
         if o.get('type') not in ('text', 'box', 'image'):
             raise ValueError('Invalid overlay type.')
         year(o, 'year')
+        anchor = text(o, 'anchorBarId', 80, False)
+        if anchor:
+            bar = bar_ids.get(anchor)
+            if not bar:
+                raise ValueError('Choose an existing time bar for the overlay anchor.')
+            if not ordinal(bar['start']) <= ordinal(o['year']) <= ordinal(bar['end']):
+                raise ValueError('Anchor year must be within its time bar.')
+            num(o, 'offsetY', -4000, 4000)
         num(o, 'y', 0, doc['height'])
         num(o, 'width', 10, 2000)
         num(o, 'height', 10, 2000)

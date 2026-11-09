@@ -36,9 +36,18 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   background colors, start/end fade durations, and optional merge target. A merge
   ends at the bar's end year, uses a cubic spline, and blends into the target color.
   The target must exist at that year; circular merges are rejected.
+- Move a bar caption horizontally by dragging its text, or set **Caption year**
+  in Properties. Drag the colored bar itself to move the whole bar.
 - Add text, boxes and illustrations from Overlays. Text supports line breaks and
   wraps within its configured width. Adjust position, dimensions, color and font
   size in Properties. Captions are also editable directly as bar properties.
+- For text, boxes and illustrations, choose **Anchor to time bar**, an **Anchor
+  year** within that bar, and an **Offset from bar top**. Negative offsets place
+  items above the bar. Anchors follow its vertical position and merge curve;
+  moving the whole bar also shifts anchor years and captions by the same elapsed
+  years, including across 1 BCE / 1 CE. Resizing a bar clamps anchors to its date
+  range. Choose **Free position** to detach an overlay without moving it; deleting
+  its bar also detaches it and preserves its position.
 - Upload PNG, JPEG or WebP illustrations to the media library. Images are decoded,
   stripped of metadata, and stored as PNG files, up to 4096 pixels per dimension.
   Uploads are limited to 12 MiB / 20 megapixels. Active SVG uploads are deliberately

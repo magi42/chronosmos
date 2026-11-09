@@ -28,6 +28,44 @@ export function dimensions(d, horizontalScale = 1) {
 }
 export const xFor = (d, y, horizontalScale = 1) =>
   PAD + (ordinal(y) - ordinal(d.start)) * UNIT * horizontalScale;
+export function clampYearToBar(bar, year) {
+  return historical(
+    Math.max(ordinal(bar.start), Math.min(ordinal(bar.end), ordinal(year))),
+  );
+}
+// Evaluate the same cubic ribbon used below, including its non-linear x mapping.
+export function barSectionAt(d, bar, year) {
+  const target = d.bars.find((b) => b.id === bar.mergeInto);
+  const duration = target
+    ? Math.min(bar.mergeYears, ordinal(bar.end) - ordinal(bar.start))
+    : 0;
+  const progress = duration
+    ? (ordinal(year) - (ordinal(bar.end) - duration)) / duration
+    : 0;
+  if (!target || progress <= 0) return { y: bar.y, height: bar.height };
+  let lo = 0,
+    hi = 1;
+  for (let i = 0; i < 32; i++) {
+    const t = (lo + hi) / 2;
+    if (1.5 * t - 1.5 * t * t + t * t * t < Math.min(1, progress)) lo = t;
+    else hi = t;
+  }
+  const t = (lo + hi) / 2,
+    blend = t * t * (3 - 2 * t);
+  return {
+    y: bar.y + (target.y - bar.y) * blend,
+    height: bar.height + (target.height - bar.height) * blend,
+  };
+}
+export function overlayPosition(d, overlay) {
+  const bar = d.bars.find((b) => b.id === overlay.anchorBarId);
+  return {
+    year: overlay.year,
+    y: bar
+      ? barSectionAt(d, bar, overlay.year).y + (overlay.offsetY ?? 0)
+      : overlay.y,
+  };
+}
 export function yearLabel(y, lang = "en") {
   return y < 0 ? `${Math.abs(y)} ${lang === "fi" ? "eaa." : "BCE"}` : String(y);
 }
@@ -147,7 +185,7 @@ export function renderTimeline(
     const grad = "grad-" + b.id,
       clip = "clip-" + b.id;
     defs.push(
-      `<linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${a}" x2="${z}" y1="0" y2="0">${stops.map(([p, c]) => `<stop offset="${p * 100}%" stop-color="${c}"/>`).join("")}</linearGradient><clipPath id="${clip}"><rect x="${a}" y="${b.y}" width="${Math.max(0, m - a)}" height="${b.height}"/></clipPath>`,
+      `<linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${a}" x2="${z}" y1="0" y2="0">${stops.map(([p, c]) => `<stop offset="${p * 100}%" stop-color="${c}"/>`).join("")}</linearGradient><clipPath id="${clip}"><rect x="${a}" y="${Math.min(b.y, target?.y ?? b.y)}" width="${len}" height="${Math.max(b.y + b.height, target ? target.y + target.height : b.y + b.height) - Math.min(b.y, target?.y ?? b.y)}"/></clipPath>`,
     );
     let path = `M${a},${b.y} H${m}`;
     if (target) {
@@ -155,9 +193,12 @@ export function renderTimeline(
       path += ` C${c},${b.y} ${c},${target.y} ${z},${target.y} L${z},${target.y + target.height} C${c},${target.y + target.height} ${c},${b.y + b.height} ${m},${b.y + b.height}`;
     } else path += ` V${b.y + b.height}`;
     path += ` H${a} Z`;
-    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text x="${a + 10}" y="${b.y + b.height / 2}" dominant-baseline="central" fill="${b.foreground}" font-size="${Math.min(14, b.height * 0.65)}" clip-path="url(#${clip})">${esc(b.label)}</text>${outline("bars", b, a, b.y, len, b.height)}</g>`;
+    const captionYear = b.captionYear ?? b.start;
+    const caption = barSectionAt(d, b, captionYear);
+    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(captionYear) + 10}" y="${caption.y + caption.height / 2}" dominant-baseline="central" fill="${b.foreground}" font-size="${Math.min(14, b.height * 0.65)}" clip-path="url(#${clip})">${esc(b.label)}</text>${outline("bars", b, a, b.y, len, b.height)}</g>`;
   }
-  for (const o of d.overlays) {
+  for (const stored of d.overlays) {
+    const o = { ...stored, ...overlayPosition(d, stored) };
     const xx = x(o.year);
     let body = "";
     if (o.type === "image")

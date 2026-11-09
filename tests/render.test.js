@@ -9,6 +9,8 @@ import {
   xFor,
   renderTimeline,
   wrappedLines,
+  overlayPosition,
+  barSectionAt,
 } from "../chronosmos/static/timeline.js";
 const sample = JSON.parse(
   readFileSync(
@@ -167,4 +169,90 @@ test("image, box and wrapped text overlays retain editable positions", () => {
     "three",
     "four",
   ]);
+});
+
+test("captions can move to a year without moving their bar or scaling vertically", () => {
+  const doc = structuredClone(sample);
+  doc.bars[0].captionYear = 1;
+  for (const horizontalScale of [0.5, 1, 3]) {
+    const svg = parse(
+      renderTimeline(doc, { interactive: true, horizontalScale }),
+    );
+    const text = svg.querySelector('[data-id="egypt"] [data-caption]');
+    assert.equal(
+      Number(text.getAttribute("x")),
+      xFor(doc, 1, horizontalScale) + 10,
+    );
+    assert.equal(
+      Number(text.getAttribute("y")),
+      doc.bars[0].y + doc.bars[0].height / 2,
+    );
+    assert.equal(
+      svg.querySelector("#clip-egypt rect").getAttribute("x"),
+      String(xFor(doc, doc.bars[0].start, horizontalScale)),
+    );
+  }
+});
+
+test("anchored text, boxes and illustrations follow bar positions in views and exports", () => {
+  const doc = structuredClone(sample);
+  const bar = doc.bars.find((b) => b.id === "jewish");
+  for (const [i, type] of ["text", "box", "image"].entries()) {
+    const overlay = {
+      ...doc.overlays[0],
+      id: "anchor-" + type,
+      type,
+      year: i === 0 ? -1 : 1,
+      anchorBarId: bar.id,
+      offsetY: -40 + i * 30,
+      mediaId: "a".repeat(32),
+    };
+    doc.overlays.push(overlay);
+    const before = overlayPosition(doc, overlay);
+    bar.y += 20;
+    assert.equal(overlayPosition(doc, overlay).y, before.y + 20);
+    for (const horizontalScale of [1, 4]) {
+      const svg = parse(
+        renderTimeline(doc, { interactive: true, horizontalScale }),
+      );
+      const group = svg.querySelector('[data-id="' + overlay.id + '"]');
+      const graphic = group.querySelector(
+        type === "image" ? "image" : type === "box" ? "rect[rx]" : "text",
+      );
+      assert.equal(
+        Number(graphic.getAttribute("y")),
+        bar.y + overlay.offsetY + (type === "text" ? overlay.fontSize : 0),
+      );
+      assert.equal(
+        Number(graphic.getAttribute("x")),
+        xFor(doc, overlay.year, horizontalScale),
+      );
+    }
+  }
+  const exported = parse(renderTimeline(doc));
+  assert.ok(!exported.querySelector("[data-caption]"));
+  const image = exported.querySelector("image");
+  assert.equal(
+    Number(image.getAttribute("y")),
+    overlayPosition(doc, doc.overlays.at(-1)).y,
+  );
+});
+
+test("anchors follow the same cubic merge ribbon as the displayed time bar", () => {
+  const doc = structuredClone(sample);
+  const bar = doc.bars.find((b) => b.id === "greek");
+  assert.equal(barSectionAt(doc, bar, -400).y, bar.y);
+  assert.ok(
+    Math.abs(
+      barSectionAt(doc, bar, -200).y -
+        (bar.y + doc.bars.find((b) => b.id === "roman").y) / 2,
+    ) < 1e-6,
+  );
+  const overlay = {
+    ...doc.overlays[0],
+    anchorBarId: bar.id,
+    year: -200,
+    offsetY: -25,
+  };
+  assert.ok(Math.abs(overlayPosition(doc, overlay).y - 217.5) < 1e-6);
 });

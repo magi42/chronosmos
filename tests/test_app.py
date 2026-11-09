@@ -98,6 +98,13 @@ def test_unpublish_and_delete(client, auth, app):
     lambda d: d['bars'][0].update(y=-3),
     lambda d: d['overlays'][0].update(type='html'),
     lambda d: d['events'][0].update(width=0),
+    lambda d: d['bars'][0].update(captionYear=0),
+    lambda d: d['bars'][0].update(captionYear=2026),
+    lambda d: d['overlays'][0].update(anchorBarId='missing', offsetY=0),
+    lambda d: d['overlays'][0].update(anchorBarId=['invalid'], offsetY=0),
+    lambda d: d['overlays'][0].update(anchorBarId='egypt', offsetY=0),
+    lambda d: d['overlays'][0].update(anchorBarId='jewish'),
+    lambda d: d['overlays'][0].update(anchorBarId='jewish', offsetY=float('inf')),
 ])
 def test_invalid_documents_rejected(client, auth, mutation):
     doc = sample()
@@ -155,6 +162,22 @@ def test_reject_active_and_missing_media(client, auth):
     doc = sample()
     doc['overlays'][0].update(type='image', mediaId='a'*32)
     assert client.post('/api/validate', json=doc, headers=auth).status_code == 400
+
+
+def test_caption_and_overlay_anchors_survive_save_and_publication(client, auth):
+    media = upload_image(client, auth)
+    doc = sample()
+    doc['bars'][5]['captionYear'] = 1
+    doc['overlays'][0].update(anchorBarId='jewish', year=-1, offsetY=-45)
+    doc['overlays'][1].update(anchorBarId='jewish', year=1, offsetY=35)
+    image = copy.deepcopy(doc['overlays'][0])
+    image.update(id='anchored-image', type='image', mediaId=media['id'])
+    doc['overlays'].append(image)
+    ident = create(client, auth, doc)
+    draft = client.get(f'/api/timelines/{ident}?editor=1').json['document']
+    assert draft == doc
+    publish(client, auth, ident)
+    assert client.get(f'/api/timelines/{ident}').json['document'] == doc
 
 
 def test_login_rate_limit(client):
