@@ -26,6 +26,17 @@
   connect two different bars at independent years. Share their geometry with anchors and exports.
 - Viewer and Preview support drag-to-pan and click-to-enlarge overlays. Suppress
   enlargement after a pan gesture; a subsequent click anywhere closes the detail.
+- Bar `captionPosition` supports inside/right/left/above/below/free. Outside
+  captions are unclipped and horizontal margins must include their translated
+  text at the chosen font size; `captionFontSize` defaults to auto. Caption drag
+  switches to free positioning. Preserve horizontal-only zoom and print scale.
+- Event `labelPosition` supports top/bottom/center/free; free uses labelY and
+  labelOffsetX. Dragging event text must move the caption without moving the line.
+- Package ZIP exports include the complete composition and referenced media only.
+  Public exports use published snapshots; editor exports may include unsaved edits.
+  Imports always create new drafts/media IDs and unused names/paths, preserving
+  existing data. Validate archive members, sizes and PNGs before DB changes;
+  never extract archive paths. Roll back installed files on import failure.
 - Optional `captionYear` positions bar captions. Overlay `anchorBarId`, `year`
   and `offsetY` bind graphics to a year on a bar; preserve the absolute `y` fallback.
   Whole-bar moves shift anchor years and captions using historical ordinals;

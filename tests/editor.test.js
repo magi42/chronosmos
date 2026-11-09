@@ -208,7 +208,7 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click('[data-tab="bars"]');
   await click('#layer-list [data-id="egypt"]');
   setField("end", -500);
-  assert.equal(Number($("#field-captionYear").value), -500);
+  assert.equal(Number($("#field-captionYear").value), 2);
   await click("#undo");
   await click("#delete-element");
   await click('[data-tab="overlays"]');

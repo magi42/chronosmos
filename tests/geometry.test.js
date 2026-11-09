@@ -110,7 +110,9 @@ test("branches attach to changing-height bars, including reverse and equal-year 
       ),
     );
     if (fromYear === toYear)
-      assert.ok(ribbon.path.includes(String(x(ordinal(fromYear)) + 80)));
+      assert.ok(
+        Math.max(...ribbon.samples.map((s) => s.x)) > x(ordinal(fromYear)) + 50,
+      );
     doc.branches = [branch];
     const svg = new JSDOM(renderTimeline(doc, { interactive: true }), {
       contentType: "image/svg+xml",
@@ -132,7 +134,10 @@ test("branches attach to changing-height bars, including reverse and equal-year 
     x,
     4,
   );
-  assert.ok(edge.path.includes(`C${x(ordinal(doc.end)) - 320},`));
+  assert.ok(
+    Math.min(...edge.samples.map((s) => s.x)) < x(ordinal(doc.end)) - 200,
+  );
+  assert.ok(edge.samples.every((s) => s.x <= x(ordinal(doc.end))));
 });
 test("text wrapping uses available measured width and splits long words without discarding text", () => {
   const measure = (text) =>
@@ -165,6 +170,52 @@ test("height changes default to centered and can preserve the top or bottom edge
       const a = sectionAt(doc, bar, at - epsilon),
         b = sectionAt(doc, bar, at + epsilon);
       assert.ok(Math.abs((b.y - a.y) / (2 * epsilon) - section.dy) < 0.00001);
+    }
+  }
+});
+
+test("branch thickness is measured across steep curves and smoothly blends endpoint heights", () => {
+  const doc = fixture(),
+    from = doc.bars[0],
+    to = doc.bars.find((bar) => bar.id === "jewish");
+  from.heightPeriods = [];
+  from.y = 100;
+  to.y = 500;
+  const x = (at) => 64 + (at - ordinal(doc.start)) * UNIT;
+  for (const targetHeight of [from.height, 90]) {
+    to.height = targetHeight;
+    for (const [fromYear, toYear] of [
+      [-1, 10],
+      [10, -1],
+      [1, 1],
+    ]) {
+      const ribbon = branchRibbon(
+        doc,
+        { fromBarId: from.id, toBarId: to.id, fromYear, toYear },
+        x,
+      );
+      assert.ok(!ribbon.path.includes("NaN"));
+      const first = ribbon.samples[0],
+        last = ribbon.samples.at(-1);
+      assert.equal(first.height, from.height);
+      assert.equal(last.height, targetHeight);
+      assert.equal(first.upper.y, from.y);
+      assert.deepEqual(
+        [last.upper.y, last.lower.y].sort((a, b) => a - b),
+        [to.y, to.y + to.height],
+      );
+      for (const s of ribbon.samples) {
+        assert.ok(
+          Math.abs(
+            Math.hypot(s.upper.x - s.lower.x, s.upper.y - s.lower.y) - s.height,
+          ) < 1e-8,
+        );
+        assert.ok(
+          s.height >= Math.min(from.height, targetHeight) &&
+            s.height <= Math.max(from.height, targetHeight),
+        );
+      }
+      assert.equal(ribbon.samples[32].height, (from.height + targetHeight) / 2);
     }
   }
 });

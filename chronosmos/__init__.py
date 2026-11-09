@@ -7,11 +7,12 @@ import secrets
 import time
 import uuid
 import sqlite3
+import tempfile
 from datetime import datetime, timezone, timedelta
 from functools import wraps
 
 import click
-from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, abort, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for, send_file
 from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -19,6 +20,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import db
 from .model import validate
+from .packages import build_package, read_package, media_ids, MAX_PACKAGE
 
 
 def now():
@@ -78,6 +80,8 @@ def create_app(config=None):
 
     @app.before_request
     def protect_writes():
+        if request.path == "/api/packages/import" and request.method == "POST":
+            request.max_content_length = MAX_PACKAGE
         if request.method in {'POST', 'PUT', 'PATCH', 'DELETE'}:
             token = request.headers.get('X-CSRF-Token', '') or request.form.get('csrf', '')
             if not token or not hmac.compare_digest(token, session.get('csrf', '')):
@@ -271,6 +275,78 @@ def create_app(config=None):
             abort(409, 'This timeline changed. Reload before deleting.')
         db.connect().commit()
         return jsonify(ok=True)
+
+    def package_response(doc):
+        resources = {ident: db.execute('SELECT * FROM media WHERE id=?', (ident,)).fetchone() for ident in media_ids(doc)}
+        output = build_package(doc, resources, app.config['MEDIA_DIR'])
+        response = send_file(output, mimetype='application/zip', as_attachment=True,
+                             download_name=doc['slug'].replace('/', '-') + '.chronosmos.zip')
+        response.call_on_close(output.close)
+        return response
+
+    @app.post('/api/packages/export')
+    @require_editor
+    def export_package():
+        doc = validate(request.get_json())
+        validate_media(doc)
+        return package_response(doc)
+
+    @app.get('/api/timelines/<ident>/package')
+    def public_package(ident):
+        row = db.execute('SELECT published FROM timelines WHERE id=?', (ident,)).fetchone()
+        if not row or not row['published']:
+            abort(404)
+        return package_response(json.loads(row['published']))
+
+    @app.post('/api/packages/import')
+    @require_editor
+    def import_package():
+        file = request.files.get('file')
+        if not file:
+            abort(400, 'Choose a Chronosmos ZIP package.')
+        installed = []
+        with tempfile.TemporaryDirectory(prefix='.import-', dir=app.config['MEDIA_DIR']) as staging:
+            doc, resources = read_package(file.stream, staging)
+            try:
+                if app.config['DATABASE_URL']:
+                    db.execute('LOCK TABLE timelines IN SHARE ROW EXCLUSIVE MODE')
+                else:
+                    db.execute('BEGIN IMMEDIATE')
+                # Include published paths/titles, including snapshots whose draft was renamed.
+                paths, titles = set(), set()
+                for row in db.execute('SELECT slug,published_slug,document,published FROM timelines').fetchall():
+                    paths.update(filter(None, (row['slug'], row['published_slug'])))
+                    for raw in (row['document'], row['published']):
+                        if raw:
+                            titles.add(json.loads(raw)['title'].strip().casefold())
+                base_title, base_slug = doc['title'], doc['slug']
+                number = 2
+                while doc['title'].strip().casefold() in titles:
+                    suffix = f' ({number})'
+                    doc['title'] = base_title[:160-len(suffix)] + suffix
+                    number += 1
+                number = 2
+                while doc['slug'] in paths:
+                    suffix = f'-{number}'
+                    doc['slug'] = base_slug[:160-len(suffix)].rstrip('/-') + suffix
+                    number += 1
+                validate(doc)
+                stamp = now()
+                for resource in resources:
+                    path = Path(app.config['MEDIA_DIR']) / resource['filename']
+                    os.link(Path(staging) / resource['filename'], path)
+                    installed.append(path)
+                    db.execute('INSERT INTO media (id,filename,name,width,height,created) VALUES (?,?,?,?,?,?)',
+                               (resource['id'], resource['filename'], resource['name'], resource['width'], resource['height'], stamp))
+                ident = uuid.uuid4().hex
+                db.execute('INSERT INTO timelines (id,slug,document,updated) VALUES (?,?,?,?)', (ident, doc['slug'], json.dumps(doc), stamp))
+                db.connect().commit()
+            except Exception:
+                db.connect().rollback()
+                for path in installed:
+                    path.unlink(missing_ok=True)
+                raise
+        return jsonify(id=ident, revision=1, published=False, document=doc, mediaCount=len(resources)), 201
 
     @app.get('/api/media')
     @require_editor

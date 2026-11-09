@@ -49,8 +49,15 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   Composition rows have a 2 px gap. Both bars continue independently. The ribbon
   uses the bars' endpoint heights and
   blends their colors; forward, reverse and same-year connections are supported.
+  Ribbon thickness is measured across the curve: equal bar heights stay constant,
+  while differing heights blend smoothly between the two attachment points.
 - Move a bar caption horizontally by dragging its text, or set **Caption year**
-  in Properties. Drag the colored bar itself to move the whole bar.
+  in Properties. Choose **Bar caption position** to place it inside, right, left,
+  above, below or freely relative to the bar. Captions outside the bar are not
+  clipped; horizontal canvas margins expand to contain them. **Caption text size**
+  defaults to Auto and can be set to a fixed font size. Caption color and offsets
+  are editable separately. Dragging a caption switches it to free positioning.
+  Drag the colored bar itself to move the whole bar.
 - Add text, boxes and illustrations from Overlays. Text supports line breaks and
   wraps within its configured width. Adjust position, dimensions, color and font
   size in Properties. Captions are also editable directly as bar properties.
@@ -72,6 +79,9 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   event year. Both bars must exist at that year. Endpoints follow bar movement,
   height changes and merges; deleting a bar preserves its endpoint as a free
   position. Axis endpoints follow the axis when the canvas height changes.
+  Set **Event caption position** to top, bottom, center or free. Free captions
+  have an editable vertical position and horizontal offset; dragging the text
+  places it freely without moving the event line.
 - Select layers or canvas objects to edit them. Drag a bar vertically by default;
   hold **Shift** to also move it in time. Its height-change periods, captions,
   anchored graphics, event lines and branch endpoints move with it. Overlays can be dragged
@@ -144,6 +154,20 @@ browser/printer page-size limits still apply. **JSON** preserves the editable
 version 1 composition. Import validates its structure before displaying it.
 JSON references library media by ID; it does not include the image files. Back up
 the database and filesystem media together when moving the complete installation.
+
+**Package** downloads a `.chronosmos.zip` archive with all timeline settings,
+texts/translations and referenced illustration files. Editor packages include the
+current composition, including unsaved changes; public viewer packages contain
+only the published snapshot. Use **Import timeline** in the editor or `/manage`
+chooser to import a package. It creates a new unpublished draft and new media IDs;
+name/path conflicts receive numeric suffixes, including paths reserved by an
+older published snapshot. Existing timelines and media are preserved. Package
+imports support up to 64 MiB and validate all members before creating the draft.
+Archives are read without extracting their paths, and images are sanitized.
+The portable format is a ZIP containing `manifest.json` (format
+`chronosmos-package`, version 1), `timeline.json` (timeline format 1), and
+`media/<media-id>.png` for each referenced image. A package contains only resources
+used by that timeline; it does not include editor accounts or server configuration.
 
 The supplied [original SVG](assets/religions-3000-fi.svg) and
 [PNG reference](assets/religions-3000-fi.png) are preserved. The editable

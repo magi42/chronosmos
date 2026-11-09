@@ -1,3 +1,4 @@
+import { textWidth } from "./text-layout.js";
 import { wireInspectorNavigation } from "./inspector-focus.js";
 import { textFor } from "./content.js";
 import { validHeightPeriods, heightAt } from "./geometry.js";
@@ -5,6 +6,8 @@ import { wireViewing } from "./viewing.js";
 import { t, language, translate, toggleLanguage } from "./i18n.js";
 import {
   renderTimeline,
+  barCaption,
+  eventCaption,
   overlayPosition,
   barSectionAt,
   clampYearToBar,
@@ -116,7 +119,15 @@ function change(fn) {
 function normalizeAttachments() {
   for (const bar of doc.bars) {
     if (bar.captionYear !== undefined)
-      bar.captionYear = clampYearToBar(bar, bar.captionYear);
+      bar.captionYear =
+        (bar.captionPosition ?? "inside") === "inside"
+          ? clampYearToBar(bar, bar.captionYear)
+          : historical(
+              Math.max(
+                -MAX_YEAR,
+                Math.min(MAX_YEAR - 1, ordinal(bar.captionYear)),
+              ),
+            );
   }
   for (const overlay of doc.overlays) {
     const bar = doc.bars.find((b) => b.id === overlay.anchorBarId);
@@ -180,34 +191,40 @@ function resizeCanvas() {
   if (!doc) return;
   const svg = $("#canvas svg");
   if (!svg) return;
-  const dim = dimensions(doc, zoom);
+  const dim = dimensions(doc, zoom, language);
   svg.style.width = `${dim.width}px`;
   svg.style.height = `${dim.height}px`;
   $("#zoom-value").textContent = `${Math.round(zoom * 100)}%`;
 }
 function fit() {
   if (!doc) return;
-  zoom = Math.min(
-    2,
-    Math.max(
-      0.05,
-      ($("#canvas-viewport").clientWidth - 64 - PAD * 2) /
-        (dimensions(doc).width - PAD * 2),
-    ),
-  );
+  const available = $("#canvas-viewport").clientWidth - 64;
+  let lo = 0.05,
+    hi = 2;
+  for (let i = 0; i < 40; i++) {
+    const candidate = (lo + hi) / 2;
+    if (dimensions(doc, candidate, language).width <= available) lo = candidate;
+    else hi = candidate;
+  }
+  zoom = lo;
   renderCanvas();
 }
 function setZoom(value, anchor = null) {
   if (!doc) return;
   const viewport = $("#canvas-viewport"),
     old = zoom,
-    oldScrollLeft = viewport.scrollLeft;
+    oldScrollLeft = viewport.scrollLeft,
+    oldLeft = dimensions(doc, old, language).left;
   zoom = Math.min(32, Math.max(0.05, value));
   renderCanvas();
   if (anchor) {
-    const origin = $("#canvas").offsetLeft + PAD;
+    const offset = $("#canvas").offsetLeft;
+    const nextLeft = dimensions(doc, zoom, language).left;
     viewport.scrollLeft =
-      origin + ((oldScrollLeft + anchor.x - origin) * zoom) / old - anchor.x;
+      offset +
+      nextLeft +
+      ((oldScrollLeft + anchor.x - offset - oldLeft) * zoom) / old -
+      anchor.x;
   }
 }
 function renderCanvas() {
@@ -295,7 +312,8 @@ async function initGallery() {
     : `<div class="empty-state">${esc(t("noTimelines"))}</div>`;
 }
 async function initViewer() {
-  const data = await api("/api/timelines/" + $("#viewer").dataset.timelineId);
+  ident = $("#viewer").dataset.timelineId;
+  const data = await api("/api/timelines/" + ident);
   doc = data.document;
   renderViewerHeading();
   renderCanvas();
@@ -669,13 +687,71 @@ function renderInspector() {
     if (kind === "bars") {
       html +=
         field("label", "label", "text", o.label) +
-        number(
-          "captionYear",
-          "captionYear",
-          o.captionYear ?? o.start,
-          o.start,
-          o.end,
+        field(
+          "captionPosition",
+          "captionPosition",
+          "select",
+          o.captionPosition ?? "inside",
+          {
+            choices: ["inside", "right", "left", "above", "below", "free"].map(
+              (v) => [v, t(v)],
+            ),
+          },
         ) +
+        (!["right", "left"].includes(o.captionPosition)
+          ? number(
+              "captionYear",
+              "captionYear",
+              o.captionYear ?? o.start,
+              o.captionPosition === undefined || o.captionPosition === "inside"
+                ? o.start
+                : -MAX_YEAR,
+              o.captionPosition === undefined || o.captionPosition === "inside"
+                ? o.end
+                : MAX_YEAR,
+            )
+          : "") +
+        field(
+          "captionFontMode",
+          "captionFontSize",
+          "select",
+          o.captionFontSize === undefined || o.captionFontSize === "auto"
+            ? "auto"
+            : "fixed",
+          {
+            choices: [
+              ["auto", t("auto")],
+              ["fixed", t("fixed")],
+            ],
+          },
+        ) +
+        (typeof o.captionFontSize === "number"
+          ? number(
+              "captionFontSize",
+              "fontSize",
+              o.captionFontSize,
+              6,
+              120,
+              "any",
+            )
+          : "") +
+        number(
+          "captionOffsetX",
+          "captionOffsetX",
+          barCaption(doc, o).offsetX,
+          -2000,
+          2000,
+          "any",
+        ) +
+        number(
+          "captionOffsetY",
+          "captionOffsetY",
+          o.captionOffsetY ?? 0,
+          -4000,
+          4000,
+          "any",
+        ) +
+        color("captionColor", "captionColor", barCaption(doc, o).color) +
         `<div class="field-pair">${number("start", "start", o.start, -MAX_YEAR, MAX_YEAR)}${number("end", "end", o.end, -MAX_YEAR, MAX_YEAR)}</div><p class="field-note">${esc(t("dateHint"))}</p>` +
         number("y", "y", o.y, 60, doc.height - 60) +
         number("height", "initialHeight", o.height, 4, 160) +
@@ -814,6 +890,26 @@ function renderInspector() {
       const range = eventYearRange(doc, o);
       html +=
         field("label", "label", "text", o.label) +
+        field(
+          "labelPosition",
+          "eventCaptionPosition",
+          "select",
+          o.labelPosition ?? "top",
+          {
+            choices: ["top", "bottom", "center", "free"].map((v) => [v, t(v)]),
+          },
+        ) +
+        (o.labelPosition === "free"
+          ? number("labelY", "captionY", o.labelY, -4000, 8000, "any")
+          : "") +
+        number(
+          "labelOffsetX",
+          "captionOffsetX",
+          o.labelOffsetX ?? 7,
+          -2000,
+          2000,
+          "any",
+        ) +
         number(
           "year",
           "year",
@@ -910,6 +1006,18 @@ function renderInspector() {
           input.value = target[key] ?? target.start;
           return;
         }
+        if (key === "captionFontMode") {
+          const previous =
+            target.captionFontSize === undefined ||
+            target.captionFontSize === "auto"
+              ? "auto"
+              : "fixed";
+          if (value !== previous)
+            change(
+              () => (target.captionFontSize = value === "auto" ? "auto" : 14),
+            );
+          return;
+        }
         if (key === "mmPerYear") value /= timeUnitFactor(doc.timeUnit);
         if (key === "majorGrid") value = value === "true";
         const side =
@@ -932,6 +1040,14 @@ function renderInspector() {
             anchorBarId: "",
             mergeInto: "",
             captionYear: target.start,
+            captionPosition: "inside",
+            captionOffsetY: 0,
+            captionOffsetX:
+              selected?.kind === "bars" ? barCaption(doc, target).offsetX : 0,
+            captionColor:
+              selected?.kind === "bars" ? barCaption(doc, target).color : "",
+            labelPosition: "top",
+            labelOffsetX: 7,
           };
           if (value === (target[key] ?? defaults[key])) return;
         }
@@ -994,6 +1110,8 @@ function renderInspector() {
               delete target.offsetY;
             }
           }
+          if (key === "labelPosition" && value === "free")
+            target.labelY = eventCaption(doc, target).y;
           if (side) {
             if (
               side === "start" &&
@@ -1268,6 +1386,10 @@ function wireDragging() {
       before: raw(),
       object: structuredClone(object),
       caption: kind === "bars" && !!e.target.closest("[data-caption]"),
+      captionLayout: kind === "bars" ? barCaption(doc, object) : null,
+      eventCaption:
+        kind === "events" && !!e.target.closest("[data-event-caption]"),
+      eventCaptionLayout: kind === "events" ? eventCaption(doc, object) : null,
       anchors:
         kind === "bars"
           ? doc.overlays
@@ -1303,12 +1425,35 @@ function wireDragging() {
       drag.kind === "bars" && !drag.caption
         ? (drag.timeOffset ?? 0)
         : Math.round(dx / pixelsPerYear(doc));
+    if (drag.eventCaption) {
+      o.labelPosition = "free";
+      o.labelY = Math.max(
+        -4000,
+        Math.min(8000, drag.eventCaptionLayout.y + dy),
+      );
+      o.labelOffsetX = Math.max(
+        -2000,
+        Math.min(2000, drag.eventCaptionLayout.offsetX + e.clientX - drag.x),
+      );
+      renderCanvas();
+      updateStatus();
+      return;
+    }
     if (drag.caption) {
       const candidate = Math.max(
         -MAX_YEAR,
-        Math.min(MAX_YEAR - 1, ordinal(b.captionYear ?? b.start) + offset),
+        Math.min(MAX_YEAR - 1, ordinal(drag.captionLayout.year) + offset),
       );
-      o.captionYear = clampYearToBar(o, historical(candidate));
+      const layout = drag.captionLayout;
+      o.captionPosition = "free";
+      o.captionYear = historical(candidate);
+      o.captionOffsetX =
+        layout.offsetX -
+        (layout.anchor === "end"
+          ? textWidth(textFor(b, "label", language), layout.size)
+          : 0);
+      const base = barSectionAt(doc, o, clampYearToBar(o, layout.year));
+      o.captionOffsetY = layout.y - base.y - base.height / 2;
       renderCanvas();
       updateStatus();
       return;
@@ -1498,8 +1643,8 @@ async function exportSvg() {
 function openExport() {
   if (!doc) return;
   const dialog = $("#export-dialog"),
-    dim = dimensions(doc);
-  dialog.innerHTML = `${closeButton()}<div class="eyebrow">CHRONOSMOS</div><h2>${esc(t("exportTitle"))}</h2><p>${esc(t("exportText"))}</p><div class="print-dimensions"><span>${esc(t("printSize"))}</span><strong>${dim.widthMm.toFixed(1)} × ${dim.heightMm.toFixed(1)} mm</strong></div><label class="field"><span>${esc(t("pngScale"))}</span><select id="png-scale"><option value="1">96 DPI</option><option value="1.5625">150 DPI</option><option value="3.125">300 DPI</option></select></label><div class="export-options">${button("svg", 'data-export="svg" class="primary"')}${button("png", 'data-export="png"')}${button("json", 'data-export="json"')}${button("print", 'data-export="print"')}</div><p class="field-note">${esc(t("printHint"))}</p>`;
+    dim = dimensions(doc, 1, language);
+  dialog.innerHTML = `${closeButton()}<div class="eyebrow">CHRONOSMOS</div><h2>${esc(t("exportTitle"))}</h2><p>${esc(t("exportText"))}</p><div class="print-dimensions"><span>${esc(t("printSize"))}</span><strong>${dim.widthMm.toFixed(1)} × ${dim.heightMm.toFixed(1)} mm</strong></div><label class="field"><span>${esc(t("pngScale"))}</span><select id="png-scale"><option value="1">96 DPI</option><option value="1.5625">150 DPI</option><option value="3.125">300 DPI</option></select></label><div class="export-options">${button("svg", 'data-export="svg" class="primary"')}${button("png", 'data-export="png"')}${button("json", 'data-export="json"')}${button("packageExport", 'data-export="package"')}${button("print", 'data-export="print"')}</div><p class="field-note">${esc(t("printHint"))}</p>`;
   wireDialog(dialog);
   dialog.showModal();
   dialog.querySelectorAll("[data-export]").forEach(
@@ -1509,6 +1654,29 @@ function openExport() {
         try {
           const format = b.dataset.export,
             name = doc.slug.replaceAll("/", "-");
+          if (format === "package") {
+            const response = await fetch(
+              page === "editor"
+                ? "/api/packages/export"
+                : `/api/timelines/${ident}/package`,
+              page === "editor"
+                ? {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "X-CSRF-Token": $('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify(doc),
+                  }
+                : {},
+            );
+            if (!response.ok)
+              throw new Error(
+                (await response.json()).error || t("exportError"),
+              );
+            download(await response.blob(), name + ".chronosmos.zip");
+            return;
+          }
           if (format === "json") {
             download(
               new Blob([JSON.stringify(doc, null, 2)], {
@@ -1623,10 +1791,38 @@ async function initEditor() {
     renderCanvas();
     fit();
   };
-  $("#import-open").onclick = () => $("#import-file").click();
+  $("#import-open").onclick = $("#chooser-import").onclick = () =>
+    $("#import-file").click();
   $("#import-file").onchange = action(async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (/\.zip$/i.test(file.name)) {
+      if (file.size > 64 * 1024 * 1024) throw new Error(t("packageTooLarge"));
+      if (dirty() && !(await confirmAction(t("leaveQuestion")))) return;
+      const form = new FormData();
+      form.append("file", file);
+      const result = await api("/api/packages/import", {
+        method: "POST",
+        body: form,
+      });
+      doc = result.document;
+      ident = result.id;
+      revision = result.revision;
+      textEditorKey = ident;
+      published = false;
+      publishedSlug = null;
+      savedRaw = raw();
+      undoStack = [];
+      redoStack = [];
+      selected = null;
+      await refreshProjects();
+      renderEditor();
+      fit();
+      projectURL(ident);
+      toast(t("packageImported"));
+      e.target.value = "";
+      return;
+    }
     if (file.size > 2 * 1024 * 1024) throw new Error(t("invalidJson"));
     let imported;
     try {

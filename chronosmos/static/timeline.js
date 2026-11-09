@@ -1,6 +1,6 @@
 import { textFor } from "./content.js";
 import { barSectionAt, ribbonPath, branchRibbon } from "./geometry.js";
-import { wrappedLines } from "./text-layout.js";
+import { wrappedLines, textWidth } from "./text-layout.js";
 export { barSectionAt, wrappedLines };
 export const UNIT = 0.45,
   PAD = 64;
@@ -28,19 +28,75 @@ export function historical(value) {
   const n = Math.round(value);
   return n < 0 ? n : n + 1;
 }
-export function dimensions(d, horizontalScale = 1) {
-  const width =
-    (ordinal(d.end) - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale +
-    PAD * 2;
+export function barCaption(d, bar) {
+  const position = bar.captionPosition ?? "inside";
+  const year =
+    position === "right"
+      ? bar.end
+      : position === "left"
+        ? bar.start
+        : (bar.captionYear ?? bar.start);
+  const section = barSectionAt(d, bar, clampYearToBar(bar, year));
+  const size =
+    bar.captionFontSize === undefined || bar.captionFontSize === "auto"
+      ? Math.min(14, section.height * 0.65)
+      : bar.captionFontSize;
+  return {
+    year,
+    y:
+      (position === "above"
+        ? section.y - size / 2 - 8
+        : position === "below"
+          ? section.y + section.height + size / 2 + 8
+          : section.y + section.height / 2) + (bar.captionOffsetY ?? 0),
+    offsetX: bar.captionOffsetX ?? (position === "left" ? -10 : 10),
+    anchor: position === "left" ? "end" : "start",
+    size,
+    color:
+      bar.captionColor ?? (position === "inside" ? bar.foreground : "#4a4e43"),
+    clipped: position === "inside",
+  };
+}
+export function dimensions(d, horizontalScale = 1, language = "en") {
+  const unit = pixelsPerYear(d) * horizontalScale;
+  const span = ordinal(d.end) - ordinal(d.start);
+  let left = PAD,
+    right = span * unit + PAD * 2;
+  for (const bar of d.bars) {
+    const caption = barCaption(d, bar);
+    if (caption.clipped) continue;
+    const xx =
+      PAD + (ordinal(caption.year) - ordinal(d.start)) * unit + caption.offsetX;
+    const width = textWidth(textFor(bar, "label", language), caption.size);
+    const start = xx - (caption.anchor === "end" ? width : 0);
+    left = Math.max(left, PAD + 16 - start);
+    right = Math.max(right, start + width + 16);
+  }
+  for (const branch of d.branches ?? []) {
+    const ribbon = branchRibbon(
+      d,
+      branch,
+      (at) => PAD + (at - ordinal(d.start)) * unit,
+      horizontalScale,
+      false,
+    );
+    if (ribbon) {
+      left = Math.max(left, PAD + 16 - ribbon.minX);
+      right = Math.max(right, ribbon.maxX + 16);
+    }
+  }
+  const width = right + left - PAD;
   return {
     width,
     height: d.height,
+    left,
     widthMm: (width / pixelsPerYear(d)) * d.mmPerYear,
     heightMm: (d.height / pixelsPerYear(d)) * d.mmPerYear,
   };
 }
-export const xFor = (d, y, horizontalScale = 1) =>
-  PAD + (ordinal(y) - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale;
+export const xFor = (d, y, horizontalScale = 1, language = "en") =>
+  dimensions(d, horizontalScale, language).left +
+  (ordinal(y) - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale;
 export function clampYearToBar(bar, year) {
   return historical(
     Math.max(ordinal(bar.start), Math.min(ordinal(bar.end), ordinal(year))),
@@ -92,6 +148,24 @@ export function eventEndpointY(d, event, side) {
 }
 export const eventStartY = (d, event) => eventEndpointY(d, event, "start");
 export const eventEndY = (d, event) => eventEndpointY(d, event, "end");
+export function eventCaption(d, event) {
+  const start = eventStartY(d, event),
+    end = eventEndY(d, event);
+  const top = Math.min(start, end),
+    bottom = Math.max(start, end);
+  const position = event.labelPosition ?? "top";
+  return {
+    offsetX: event.labelOffsetX ?? 7,
+    y:
+      position === "free"
+        ? event.labelY
+        : position === "center"
+          ? (start + end) / 2
+          : position === "bottom"
+            ? bottom + (bottom === axisY(d, "bottom") ? -12 : 18)
+            : top + (top === axisY(d, "top") ? 26 : -9),
+  };
+}
 export function eventYearRange(d, event) {
   const bars = d.bars.filter(
     (b) => b.id === event.startBarId || b.id === event.endBarId,
@@ -142,10 +216,16 @@ export function renderTimeline(
     pixelScale = 1,
   } = {},
 ) {
-  const { width, height, widthMm, heightMm } = dimensions(d, horizontalScale),
-    x = (y) => xFor(d, y, horizontalScale),
+  const { width, height, widthMm, heightMm, left } = dimensions(
+      d,
+      horizontalScale,
+      language,
+    ),
+    x = (y) =>
+      left +
+      (ordinal(y) - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale,
     xOrdinal = (at) =>
-      PAD + (at - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale,
+      left + (at - ordinal(d.start)) * pixelsPerYear(d) * horizontalScale,
     defs = [];
   const select = (kind, o) =>
     interactive
@@ -158,7 +238,7 @@ export function renderTimeline(
   const ticks = axisTicks(d, horizontalScale, pixelScale);
   const majorYears = new Set(ticks.major);
   function ruler(y, bottom) {
-    let out = `<g class="time-axis ${bottom ? "bottom-axis" : "top-axis"}" fill="#69685f" stroke="#c4c0b4" font-family="Arial, sans-serif" font-size="11"><line class="axis-line" x1="${PAD}" x2="${width - PAD}" y1="${y}" y2="${y}"/>`;
+    let out = `<g class="time-axis ${bottom ? "bottom-axis" : "top-axis"}" fill="#69685f" stroke="#c4c0b4" font-family="Arial, sans-serif" font-size="11"><line class="axis-line" x1="${x(d.start)}" x2="${x(d.end)}" y1="${y}" y2="${y}"/>`;
     const years = [...new Set([...ticks.minor, ...ticks.major])].sort(
       (a, b) => a - b,
     );
@@ -179,8 +259,8 @@ export function renderTimeline(
     const xx = x(e.year),
       start = eventStartY(d, e),
       end = eventEndY(d, e),
-      labelY = e.startAxis === "top" ? start + 26 : start - 9;
-    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="transparent" stroke-width="12"/>` : ""}<text x="${xx + 7}" y="${labelY}" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, Math.min(start, end), 1, Math.abs(end - start))}</g>`;
+      caption = eventCaption(d, e);
+    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="transparent" stroke-width="12"/>` : ""}<text ${interactive ? 'data-event-caption="true" style="cursor:move"' : ""} x="${xx + caption.offsetX}" y="${caption.y}" dominant-baseline="central" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, Math.min(start, end), 1, Math.abs(end - start))}</g>`;
   }
   let content = `<rect width="${width}" height="${height}" fill="${d.background}"/>`;
   if (d.majorGrid) {
@@ -237,9 +317,8 @@ export function renderTimeline(
       `<linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${a}" x2="${z}" y1="0" y2="0">${stops.map(([p, c]) => `<stop offset="${p * 100}%" stop-color="${c}"/>`).join("")}</linearGradient><clipPath id="${clip}"><rect x="${a}" y="${ribbon.top}" width="${len}" height="${ribbon.bottom - ribbon.top}"/></clipPath>`,
     );
     const path = ribbon.path;
-    const captionYear = b.captionYear ?? b.start;
-    const caption = barSectionAt(d, b, captionYear);
-    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(captionYear) + 10}" y="${caption.y + caption.height / 2}" dominant-baseline="central" fill="${b.foreground}" font-size="${Math.min(14, b.height * 0.65)}" clip-path="url(#${clip})">${esc(textFor(b, "label", language))}</text>${outline("bars", b, a, ribbon.top, len, ribbon.bottom - ribbon.top)}</g>`;
+    const caption = barCaption(d, b);
+    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(caption.year) + caption.offsetX}" y="${caption.y}" text-anchor="${caption.anchor}" dominant-baseline="central" fill="${caption.color}" font-size="${caption.size}" ${caption.clipped ? `clip-path="url(#${clip})"` : ""}>${esc(textFor(b, "label", language))}</text>${outline("bars", b, a, ribbon.top, len, ribbon.bottom - ribbon.top)}</g>`;
   }
   for (const stored of d.overlays) {
     const o = {

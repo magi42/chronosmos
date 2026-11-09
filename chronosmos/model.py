@@ -23,7 +23,7 @@ def validate(doc):
 
     def num(obj, key, low, high):
         v = obj.get(key)
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not low <= v <= high:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not low <= v <= high or not math.isfinite(v):
             raise ValueError(f'{key} must be between {low} and {high}.')
         return v
 
@@ -98,9 +98,18 @@ def validate(doc):
         num(b, 'fadeOut', 0, 2 * MAX_YEAR)
         if b.get('heightAlignment', 'center') not in ('top', 'center', 'bottom'):
             raise ValueError('Invalid height alignment.')
+        if b.get('captionPosition', 'inside') not in ('inside', 'right', 'left', 'above', 'below', 'free'):
+            raise ValueError('Invalid bar caption position.')
+        if b.get('captionFontSize', 'auto') != 'auto':
+            num(b, 'captionFontSize', 6, 120)
+        for key, low, high in (('captionOffsetX', -2000, 2000), ('captionOffsetY', -4000, 4000)):
+            if key in b:
+                num(b, key, low, high)
+        if 'captionColor' in b:
+            color(b, 'captionColor')
         if 'captionYear' in b:
             caption = year(b, 'captionYear')
-            if not ordinal(a) <= ordinal(caption) <= ordinal(z):
+            if b.get('captionPosition', 'inside') == 'inside' and not ordinal(a) <= ordinal(caption) <= ordinal(z):
                 raise ValueError('Caption year must be within its time bar.')
         periods = b.get('heightPeriods', [])
         if not isinstance(periods, list) or len(periods) > 50:
@@ -190,6 +199,14 @@ def validate(doc):
                     raise ValueError('Both event endpoints must exist at the event year.')
             if e.get(side + 'Edge', 'center') not in ('top', 'center', 'bottom'):
                 raise ValueError('Invalid event endpoint alignment.')
+        if e.get('labelPosition', 'top') not in ('top', 'bottom', 'center', 'free'):
+            raise ValueError('Invalid event caption position.')
+        if e.get('labelPosition') == 'free':
+            num(e, 'labelY', -4000, 8000)
+        elif 'labelY' in e:
+            num(e, 'labelY', -4000, 8000)
+        if 'labelOffsetX' in e:
+            num(e, 'labelOffsetX', -2000, 2000)
         num(e, 'width', .25, 20)
         color(e, 'color')
         if e.get('layer') not in ('under', 'over'):

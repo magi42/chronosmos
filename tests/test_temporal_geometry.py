@@ -118,3 +118,30 @@ def test_independent_event_endpoints_and_axis_settings_survive_publication(clien
     ident = created.json['id']
     assert client.post(f'/api/timelines/{ident}/publish',json=dict(published=True,revision=1),headers=auth).status_code == 200
     assert client.get(f'/api/timelines/{ident}').json['document'] == doc
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda d: d.update(start=-10**500),
+    lambda d: d['events'][0].update(labelPosition='invalid'),
+    lambda d: d['events'][0].update(labelPosition='free'),
+    lambda d: d['events'][0].update(labelPosition='free',labelY=float('nan')),
+    lambda d: d['bars'][0].update(captionPosition='invalid'),
+    lambda d: d['bars'][0].update(captionFontSize=0),
+    lambda d: d['bars'][0].update(captionFontSize=True),
+    lambda d: d['bars'][0].update(captionOffsetX=3000),
+    lambda d: d['bars'][0].update(captionColor='red'),
+])
+def test_invalid_caption_settings_are_rejected(client, auth, mutation):
+    doc = document();mutation(doc)
+    assert client.post('/api/timelines',json=doc,headers=auth).status_code == 400
+
+
+def test_caption_positions_and_sizes_survive_publication(client, auth):
+    doc=document()
+    doc['bars'][0].update(captionPosition='free',captionYear=2500,captionFontSize=24,captionOffsetX=40,captionOffsetY=-30,captionColor='#223344')
+    doc['events'][0].update(labelPosition='free',labelY=450,labelOffsetX=30)
+    result=client.post('/api/timelines',json=doc,headers=auth)
+    assert result.status_code == 201
+    ident=result.json['id']
+    client.post(f'/api/timelines/{ident}/publish',json=dict(published=True,revision=1),headers=auth)
+    assert client.get(f'/api/timelines/{ident}').json['document'] == doc

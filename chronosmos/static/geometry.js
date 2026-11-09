@@ -142,7 +142,13 @@ export function ribbonPath(d, bar, x) {
     bottom: Math.max(...samples.map((s) => s.y + s.height)),
   };
 }
-export function branchRibbon(d, branch, x, horizontalScale = 1) {
+export function branchRibbon(
+  d,
+  branch,
+  x,
+  horizontalScale = 1,
+  includePath = true,
+) {
   const from = d.bars.find((b) => b.id === branch.fromBarId),
     to = d.bars.find((b) => b.id === branch.toBarId);
   if (!from || !to) return null;
@@ -158,13 +164,67 @@ export function branchRibbon(d, branch, x, horizontalScale = 1) {
   );
   const c =
     ax === bx ? ax + (ax > (startX + endX) / 2 ? -bend : bend) : (ax + bx) / 2;
+  const ay = a.y + a.height / 2,
+    by = b.y + b.height / 2;
+  const direction = Math.sign(c - ax) || Math.sign(bx - ax) || 1;
+  const point = (t) => {
+    const u = 1 - t;
+    const xx =
+      u * u * u * ax + 3 * u * u * t * c + 3 * u * t * t * c + t * t * t * bx;
+    const yy = ay + (by - ay) * t * t * (3 - 2 * t);
+    const dx = 3 * u * u * (c - ax) + 3 * t * t * (bx - c);
+    const dy = 6 * t * u * (by - ay);
+    const speed = Math.hypot(dx, dy);
+    const height = a.height + (b.height - a.height) * t * t * (3 - 2 * t);
+    const nx = speed ? (-direction * dy) / speed : 0;
+    const ny = speed ? (direction * dx) / speed : 1;
+    return {
+      x: xx,
+      y: yy,
+      height,
+      upper: { x: xx - (nx * height) / 2, y: yy - (ny * height) / 2 },
+      lower: { x: xx + (nx * height) / 2, y: yy + (ny * height) / 2 },
+    };
+  };
+  const samples = Array.from({ length: 65 }, (_, i) => point(i / 64));
+  // Cubic outlines of a ribbon measured perpendicular to its center curve.
+  // Equal endpoint heights stay constant through steep bends; unequal heights
+  // use the same smoothstep interpolation as bar height periods.
+  const edge = (side, reverse = false) => {
+    const list = (reverse ? [...samples].reverse() : samples).map(
+      (s) => s[side],
+    );
+    return list
+      .slice(1)
+      .map((b, i) => {
+        const a = list[i],
+          prev = list[Math.max(0, i - 1)],
+          next = list[Math.min(list.length - 1, i + 2)];
+        const ax = i === 0 ? (b.x - a.x) / 3 : (b.x - prev.x) / 6;
+        const ay = i === 0 ? 0 : (b.y - prev.y) / 6;
+        const bx = i + 2 >= list.length ? (b.x - a.x) / 3 : (next.x - a.x) / 6;
+        const by = i + 2 >= list.length ? 0 : (next.y - a.y) / 6;
+        return `C${a.x + ax},${a.y + ay} ${b.x - bx},${b.y - by} ${b.x},${b.y}`;
+      })
+      .join(" ");
+  };
+  let path = !includePath
+    ? ""
+    : `M${samples[0].upper.x},${samples[0].upper.y} ${edge("upper")} L${samples.at(-1).lower.x},${samples.at(-1).lower.y} ${edge("lower", true)} Z`;
+  if (includePath && ax === bx && ay === by) {
+    // Coincident centers form a flat loop, avoiding a zero tangent normal.
+    path = `M${ax},${a.y} C${c},${a.y} ${c},${b.y} ${bx},${b.y} L${bx},${b.y + b.height} C${c},${b.y + b.height} ${c},${a.y + a.height} ${ax},${a.y + a.height} Z`;
+  }
   return {
-    path: `M${ax},${a.y} C${c},${a.y} ${c},${b.y} ${bx},${b.y} L${bx},${b.y + b.height} C${c},${b.y + b.height} ${c},${a.y + a.height} ${ax},${a.y + a.height} Z`,
+    minX: Math.min(...samples.flatMap((s) => [s.upper.x, s.lower.x])),
+    maxX: Math.max(...samples.flatMap((s) => [s.upper.x, s.lower.x])),
+    path,
     ax,
     bx,
     from,
     to,
-    top: Math.min(a.y, b.y),
-    bottom: Math.max(a.y + a.height, b.y + b.height),
+    samples,
+    top: Math.min(...samples.flatMap((s) => [s.upper.y, s.lower.y])),
+    bottom: Math.max(...samples.flatMap((s) => [s.upper.y, s.lower.y])),
   };
 }

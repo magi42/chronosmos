@@ -5,6 +5,8 @@ import { JSDOM } from "jsdom";
 import { textFor } from "../chronosmos/static/content.js";
 import {
   yearLabel,
+  eventCaption,
+  barCaption,
   eventEndY,
   eventStartY,
   axisY,
@@ -490,4 +492,85 @@ test("event sources and targets independently attach to either axis or a time ba
   delete event.endAxis;
   event.endBarId = "egypt";
   assert.equal(eventEndY(doc, event), section.y + section.height / 2);
+});
+
+test("event captions use top, bottom, center and free positions for either line direction", () => {
+  for (const [start, end] of [
+    [100, 500],
+    [500, 100],
+  ]) {
+    const event = {
+      ...sample.events[0],
+      y: start,
+      endY: end,
+      labelOffsetX: 25,
+    };
+    const doc = { ...sample, events: [event] };
+    for (const [position, expected] of [
+      ["top", 91],
+      ["bottom", 518],
+      ["center", 300],
+      ["free", 345],
+    ]) {
+      event.labelPosition = position;
+      event.labelY = 345;
+      assert.equal(eventCaption(doc, event).y, expected);
+      for (const horizontalScale of [0.5, 4]) {
+        const svg = parse(
+          renderTimeline(doc, { interactive: true, horizontalScale }),
+        );
+        const text = svg.querySelector('[data-kind="events"] text');
+        assert.equal(Number(text.getAttribute("y")), expected);
+        assert.equal(
+          Number(text.getAttribute("x")),
+          xFor(doc, event.year, horizontalScale) + 25,
+        );
+      }
+    }
+  }
+});
+
+test("outside bar captions are unclipped, sized automatically or explicitly, and get space in the canvas and print export", () => {
+  const doc = structuredClone(sample),
+    bar = doc.bars[0];
+  bar.end = doc.end;
+  bar.label = "A longer caption placed to the right of its time bar";
+  bar.captionPosition = "right";
+  bar.captionFontSize = 24;
+  for (const horizontalScale of [0.1, 1, 4]) {
+    const dim = dimensions(doc, horizontalScale);
+    const svg = parse(
+      renderTimeline(doc, { interactive: true, horizontalScale }),
+    );
+    const caption = svg.querySelector('[data-id="egypt"] text');
+    assert.equal(caption.getAttribute("clip-path"), null);
+    assert.equal(
+      Number(caption.getAttribute("x")),
+      xFor(doc, bar.end, horizontalScale) + 10,
+    );
+    assert.equal(Number(caption.getAttribute("font-size")), 24);
+    assert.ok(dim.width > xFor(doc, doc.end, horizontalScale) + 300);
+    assert.equal(
+      Number(svg.documentElement.getAttribute("viewBox").split(" ")[2]),
+      dim.width,
+    );
+    assert.ok(
+      Math.abs(
+        ((xFor(doc, 101, horizontalScale) - xFor(doc, 1, horizontalScale)) /
+          dim.width) *
+          dim.widthMm -
+          100 * doc.mmPerYear * horizontalScale,
+      ) < 1e-9,
+    );
+  }
+  bar.captionPosition = "left";
+  const dim = dimensions(doc);
+  const caption = barCaption(doc, bar);
+  assert.ok(dim.left > 64);
+  assert.equal(caption.anchor, "end");
+  bar.captionFontSize = "auto";
+  assert.equal(barCaption(doc, bar).size, 14);
+  bar.captionPosition = "free";
+  bar.captionYear = 2200;
+  assert.equal(barCaption(doc, bar).year, 2200);
 });

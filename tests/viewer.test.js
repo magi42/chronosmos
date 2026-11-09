@@ -61,6 +61,12 @@ test("compact public header switches translated title, content and exported SVG 
         blob: async () =>
           new dom.window.Blob(["test image"], { type: "image/png" }),
       };
+    if (path === "/api/timelines/example/package")
+      return {
+        ok: true,
+        blob: async () =>
+          new Blob(["public package"], { type: "application/zip" }),
+      };
     assert.equal(path, "/api/timelines/example");
     return { ok: true, json: async () => ({ document: doc }) };
   };
@@ -144,5 +150,7 @@ test("compact public header switches translated title, content and exported SVG 
   assert.match(svg, /<title>Perinteiden aikajana<\/title>/);
   assert.match(svg, /Egyptiläiset perinteet/);
   assert.ok(svg.includes(doc.description));
+  await $('[data-export="package"]').onclick();
+  assert.equal(await exported.text(), "public package");
   dom.window.close();
 });
