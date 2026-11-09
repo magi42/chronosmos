@@ -72,20 +72,70 @@ test("timescale supports top, bottom, both and none, with no zero", () => {
   const counts = { top: 1, bottom: 1, both: 2, none: 0 };
   for (const [scale, count] of Object.entries(counts)) {
     const doc = { ...sample, scale, start: -2, end: 2 };
-    const svg = parse(renderTimeline(doc, { zoom: 32 }));
+    const svg = parse(renderTimeline(doc, { horizontalScale: 32 }));
     assert.equal(svg.querySelectorAll("g[font-family]").length, count);
     for (const txt of svg.querySelectorAll("g[font-family] text"))
       assert.notEqual(txt.textContent, "0");
   }
 });
 test("zoom reveals decade and annual ticks", () => {
-  const a = parse(renderTimeline(sample, { zoom: 1 })).querySelectorAll(
-    "g[font-family] line",
-  ).length;
-  const b = parse(renderTimeline(sample, { zoom: 32 })).querySelectorAll(
-    "g[font-family] line",
-  ).length;
+  const a = parse(
+    renderTimeline(sample, { horizontalScale: 1 }),
+  ).querySelectorAll("g[font-family] line").length;
+  const b = parse(
+    renderTimeline(sample, { horizontalScale: 32 }),
+  ).querySelectorAll("g[font-family] line").length;
   assert.ok(b > a * 10);
+});
+test("horizontal zoom expands dates while preserving vertical geometry and content sizes", () => {
+  const doc = structuredClone(sample);
+  doc.overlays.push({
+    ...doc.overlays[0],
+    id: "image",
+    type: "image",
+    mediaId: "a".repeat(32),
+  });
+  const base = parse(renderTimeline(doc, { interactive: true }));
+  const zoomed = parse(
+    renderTimeline(doc, { interactive: true, horizontalScale: 2 }),
+  );
+  const line = '[data-id="event2"] line';
+  assert.equal(
+    Number(zoomed.querySelector(line).getAttribute("x1")) - 64,
+    (Number(base.querySelector(line).getAttribute("x1")) - 64) * 2,
+  );
+  for (const selector of [
+    "#clip-roman rect",
+    '[data-id="note2"] rect',
+    '[data-id="image"] image',
+  ]) {
+    for (const attribute of ["y", "height"]) {
+      assert.equal(
+        zoomed.querySelector(selector).getAttribute(attribute),
+        base.querySelector(selector).getAttribute(attribute),
+      );
+    }
+  }
+  assert.equal(
+    zoomed.querySelector('[data-id="image"] image').getAttribute("width"),
+    base.querySelector('[data-id="image"] image').getAttribute("width"),
+  );
+  assert.equal(
+    zoomed.querySelector('[data-id="roman"] text').getAttribute("font-size"),
+    base.querySelector('[data-id="roman"] text').getAttribute("font-size"),
+  );
+  assert.equal(
+    zoomed.documentElement.getAttribute("viewBox").split(" ")[3],
+    String(doc.height),
+  );
+  assert.equal(
+    zoomed.querySelector("#grad-egypt").innerHTML,
+    base.querySelector("#grad-egypt").innerHTML,
+  );
+  assert.equal(
+    Number(zoomed.querySelector("#clip-roman rect").getAttribute("width")),
+    Number(base.querySelector("#clip-roman rect").getAttribute("width")) * 2,
+  );
 });
 test("event lines preserve order relative to bars", () => {
   const doc = structuredClone(sample);

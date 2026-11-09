@@ -48,7 +48,8 @@ empty library. Schema creation is idempotent; it does not reset existing data.
 - Select layers or canvas objects to edit them. Drag to move them horizontally
   and vertically. Use Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z for undo/redo, Ctrl/Cmd+S to
   save, and Delete to remove a selected element. The inspector offers duplication.
-- Zoom with the controls or Ctrl/Cmd+scroll. Fit shows the entire width. The ruler
+- Zoom horizontally with the controls or Ctrl/Cmd+scroll. Bar heights, vertical
+  spacing, type sizes and illustration dimensions stay fixed. Fit shows the entire width. The ruler
   adds century, decade and annual ticks as you zoom in.
 - **Save draft** persists editing changes. **Publish** saves and replaces the
   public snapshot. **Preview** shows the current draft without editing controls.

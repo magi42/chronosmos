@@ -2,6 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
+import {
+  dimensions,
+  ordinal,
+  PAD,
+  UNIT,
+} from "../chronosmos/static/timeline.js";
 
 test("editor adds, edits, saves, publishes, undoes and previews a composition", async () => {
   const sample = JSON.parse(
@@ -97,6 +103,61 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   assert.equal($("html").lang, "en");
   assert.equal($("#canvas svg title").textContent, sample.title);
   assert.equal(document.querySelectorAll(".layer-row").length, 8);
+  const viewport = $("#canvas-viewport");
+  Object.defineProperty($("#canvas"), "offsetLeft", { value: 32 });
+  const height = $("#canvas svg").style.height;
+  const width = () => parseFloat($("#canvas svg").style.width);
+  const initialWidth = width();
+  viewport.scrollTop = 125;
+  await click("#zoom-in");
+  assert.ok(
+    Math.abs((width() - PAD * 2) / (initialWidth - PAD * 2) - 1.25) < 1e-10,
+  );
+  assert.equal($("#canvas svg").style.height, height);
+  assert.equal(viewport.scrollTop, 125);
+  await click("#zoom-out");
+  assert.ok(Math.abs(width() - initialWidth) < 1e-10);
+  viewport.scrollLeft = 240;
+  viewport.dispatchEvent(
+    new dom.window.WheelEvent("wheel", {
+      ctrlKey: true,
+      deltaY: -100,
+      clientX: 300,
+      clientY: 200,
+      cancelable: true,
+    }),
+  );
+  assert.equal($("#canvas svg").style.height, height);
+  assert.equal(viewport.scrollTop, 125);
+  assert.ok(
+    Math.abs(
+      viewport.scrollLeft - (32 + PAD + (240 + 300 - 32 - PAD) * 1.12 - 300),
+    ) < 1e-10,
+  );
+  const currentZoom =
+    (width() - PAD * 2) / (dimensions(sample).width - PAD * 2);
+  $("#canvas").setPointerCapture = () => {};
+  const pointer = (type, x, y) =>
+    new dom.window.MouseEvent(type, {
+      clientX: x,
+      clientY: y,
+      button: 0,
+      bubbles: true,
+    });
+  $('#canvas [data-id="egypt"]').dispatchEvent(
+    pointer("pointerdown", 200, 100),
+  );
+  $("#canvas").dispatchEvent(pointer("pointermove", 244, 136));
+  $("#canvas").dispatchEvent(pointer("pointerup", 244, 136));
+  assert.equal(Number($("#field-y").value), sample.bars[0].y + 36);
+  assert.equal(
+    ordinal(Number($("#field-start").value)) - ordinal(sample.bars[0].start),
+    Math.round(44 / currentZoom / UNIT),
+  );
+  await click("#undo");
+  await click("#zoom-fit");
+  assert.equal($("#canvas svg").style.height, height);
+  assert.ok(width() <= viewport.clientWidth - 64 + 1e-10);
   await click('[data-add="bar"]');
   assert.equal(document.querySelectorAll(".layer-row").length, 9);
   const label = $("#field-label");
@@ -147,5 +208,17 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   assert.ok(!svg.includes("/media/"));
   assert.ok(!svg.includes("data-id="));
   assert.match(svg, /width="[\d.]+mm"/);
+  const exportedSvg = new DOMParser().parseFromString(
+    svg,
+    "image/svg+xml",
+  ).documentElement;
+  assert.equal(
+    parseFloat(exportedSvg.getAttribute("width")),
+    dimensions(sample).widthMm,
+  );
+  assert.equal(
+    parseFloat(exportedSvg.getAttribute("height")),
+    dimensions(sample).heightMm,
+  );
   dom.window.close();
 });

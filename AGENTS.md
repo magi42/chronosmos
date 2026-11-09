@@ -4,6 +4,8 @@
   The Python and JavaScript ordinal conversions must stay in agreement.
 - Use the shared SVG renderer for editor, public view and SVG/PNG/print exports.
   Preserve actual SVG millimeter dimensions and embedded export illustrations.
+- Timeline zoom changes only the horizontal time scale. Keep vertical positions,
+  bar heights, text sizes and illustration proportions fixed, including while dragging.
 - Editor access is provisioned server-side through the CLI. Do not add public
   registration, default credentials, or a public login link without a user request.
 - Saving a draft must not change a published composition or its public path.

@@ -16,8 +16,9 @@ export function historical(value) {
   const n = Math.round(value);
   return n < 0 ? n : n + 1;
 }
-export function dimensions(d) {
-  const width = (ordinal(d.end) - ordinal(d.start)) * UNIT + PAD * 2;
+export function dimensions(d, horizontalScale = 1) {
+  const width =
+    (ordinal(d.end) - ordinal(d.start)) * UNIT * horizontalScale + PAD * 2;
   return {
     width,
     height: d.height,
@@ -25,7 +26,8 @@ export function dimensions(d) {
     heightMm: (d.height / UNIT) * d.mmPerYear,
   };
 }
-export const xFor = (d, y) => PAD + (ordinal(y) - ordinal(d.start)) * UNIT;
+export const xFor = (d, y, horizontalScale = 1) =>
+  PAD + (ordinal(y) - ordinal(d.start)) * UNIT * horizontalScale;
 export function yearLabel(y, lang = "en") {
   return y < 0 ? `${Math.abs(y)} ${lang === "fi" ? "eaa." : "BCE"}` : String(y);
 }
@@ -46,10 +48,16 @@ export function wrappedLines(text, width, size) {
 }
 export function renderTimeline(
   d,
-  { selected = null, language = "en", interactive = false, zoom = 1 } = {},
+  {
+    selected = null,
+    language = "en",
+    interactive = false,
+    horizontalScale = 1,
+    pixelScale = 1,
+  } = {},
 ) {
-  const { width, height, widthMm, heightMm } = dimensions(d),
-    x = (y) => xFor(d, y),
+  const { width, height, widthMm, heightMm } = dimensions(d, horizontalScale),
+    x = (y) => xFor(d, y, horizontalScale),
     defs = [];
   const select = (kind, o) =>
     interactive
@@ -62,7 +70,7 @@ export function renderTimeline(
   function ruler(y, bottom) {
     const span = ordinal(d.end) - ordinal(d.start),
       maxTicks = 12000;
-    const desired = 6 / (UNIT * zoom);
+    const desired = 6 / (UNIT * horizontalScale * pixelScale);
     const minor =
       desired <= 1
         ? 1
@@ -88,7 +96,7 @@ export function renderTimeline(
     )
       if (year !== 0) years.add(year);
     const sorted = [...years].sort((a, b) => a - b),
-      labelSpacing = 75 / zoom;
+      labelSpacing = 75 / pixelScale;
     let lastLabel = -Infinity;
     for (const year of sorted) {
       const xx = x(year),
@@ -117,10 +125,10 @@ export function renderTimeline(
       z = x(b.end),
       len = z - a,
       target = d.bars.find((t) => t.id === b.mergeInto),
-      merge = target ? Math.min(b.mergeYears * UNIT, len) : 0,
+      merge = target ? Math.min(b.mergeYears * UNIT * horizontalScale, len) : 0,
       m = z - merge;
-    const fi = Math.min(b.fadeIn * UNIT, len) / len,
-      fo = Math.min(b.fadeOut * UNIT, len) / len,
+    const fi = Math.min(b.fadeIn * UNIT * horizontalScale, len) / len,
+      fo = Math.min(b.fadeOut * UNIT * horizontalScale, len) / len,
       stops = [];
     if (fi > 0)
       stops.push(

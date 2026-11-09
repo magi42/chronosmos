@@ -4,7 +4,6 @@ import {
   dimensions,
   ordinal,
   historical,
-  xFor,
   yearLabel,
   UNIT,
   PAD,
@@ -123,9 +122,9 @@ function resizeCanvas() {
   if (!doc) return;
   const svg = $("#canvas svg");
   if (!svg) return;
-  const dim = dimensions(doc);
-  svg.style.width = `${dim.width * zoom}px`;
-  svg.style.height = `${dim.height * zoom}px`;
+  const dim = dimensions(doc, zoom);
+  svg.style.width = `${dim.width}px`;
+  svg.style.height = `${dim.height}px`;
   $("#zoom-value").textContent = `${Math.round(zoom * 100)}%`;
 }
 function fit() {
@@ -134,7 +133,8 @@ function fit() {
     2,
     Math.max(
       0.05,
-      ($("#canvas-viewport").clientWidth - 64) / dimensions(doc).width,
+      ($("#canvas-viewport").clientWidth - 64 - PAD * 2) /
+        (dimensions(doc).width - PAD * 2),
     ),
   );
   renderCanvas();
@@ -142,14 +142,14 @@ function fit() {
 function setZoom(value, anchor = null) {
   if (!doc) return;
   const viewport = $("#canvas-viewport"),
-    old = zoom;
+    old = zoom,
+    oldScrollLeft = viewport.scrollLeft;
   zoom = Math.min(32, Math.max(0.05, value));
   renderCanvas();
   if (anchor) {
+    const origin = $("#canvas").offsetLeft + PAD;
     viewport.scrollLeft =
-      ((viewport.scrollLeft + anchor.x) * zoom) / old - anchor.x;
-    viewport.scrollTop =
-      ((viewport.scrollTop + anchor.y) * zoom) / old - anchor.y;
+      origin + ((oldScrollLeft + anchor.x - origin) * zoom) / old - anchor.x;
   }
 }
 function renderCanvas() {
@@ -161,7 +161,7 @@ function renderCanvas() {
     selected: page === "editor" && !preview ? selected : null,
     language,
     interactive: page === "editor" && !preview,
-    zoom,
+    horizontalScale: zoom,
   });
   resizeCanvas();
 }
@@ -178,7 +178,6 @@ function wireZoom() {
         const r = e.currentTarget.getBoundingClientRect();
         setZoom(zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), {
           x: e.clientX - r.left,
-          y: e.clientY - r.top,
         });
       }
     },
@@ -678,7 +677,7 @@ function wireDragging() {
   $("#canvas").addEventListener("pointermove", (e) => {
     if (!drag) return;
     const dx = (e.clientX - drag.x) / zoom,
-      dy = (e.clientY - drag.y) / zoom;
+      dy = e.clientY - drag.y;
     if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
     drag.moved = true;
     const o = selectedItem(),
@@ -771,7 +770,10 @@ function download(blob, name) {
 }
 async function exportSvg() {
   const parsed = new DOMParser().parseFromString(
-    renderTimeline(doc, { language, zoom: (doc.mmPerYear * 96) / 25.4 / UNIT }),
+    renderTimeline(doc, {
+      language,
+      pixelScale: (doc.mmPerYear * 96) / 25.4 / UNIT,
+    }),
     "image/svg+xml",
   );
   for (const img of parsed.querySelectorAll("image")) {
