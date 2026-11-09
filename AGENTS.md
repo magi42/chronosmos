@@ -13,6 +13,13 @@
   bar heights, text sizes and illustration proportions fixed, including while dragging.
 - Bar dragging changes only vertical position unless Shift is held. Horizontal
   moves must shift captions, anchors, height periods and connected branch endpoints.
+- In the Bars tab, group branches beneath their source bar in collapsible lists;
+  selecting or creating a branch keeps that tab active. Composition row gaps are 2 px.
+- Properties Tab/Shift+Tab must commit pending edits and resolve focus after DOM
+  replacement, including language selectors and height-period inputs; allow exit.
+- Optional `labelInterval` and `minorTickInterval` are integer elapsed years;
+  0 means automatic. `majorGrid` draws label-year lines behind content with
+  short outward ticks at both axes. Bound tick counts and never introduce year 0.
 - Optional `heightPeriods` change bar thickness smoothly between start/end years;
   targets persist and periods cannot overlap. `heightAlignment` defaults to
   center; top and bottom preserve the respective initial edge. Optional `branches`
@@ -23,9 +30,11 @@
   and `offsetY` bind graphics to a year on a bar; preserve the absolute `y` fallback.
   Whole-bar moves shift anchor years and captions using historical ordinals;
   detaching or deleting the parent bar preserves the overlay's displayed position.
-- Event `endBarId` and `endEdge` attach line endpoints to the shared bar section
-  at the event year. Whole-bar time moves shift attached event years; deletion
-  detaches to absolute `endY` without moving the endpoint.
+- Event `startBarId`/`endBarId` and `startEdge`/`endEdge` attach independent
+  endpoints to shared bar geometry at one event year. `startAxis`/`endAxis`
+  instead select top/bottom axes. Whole-bar time moves shift attached event years
+  within both bars' active ranges; deletion detaches to absolute startY/endY.
+  Preserve legacy y/height event lines and optional endBarId/endY documents.
 - Plain title/description/label/text fields are the English base. Optional
   `translations[language][field]` supplies authored translations; missing or blank
   values fall back to English per field. Use the shared content lookup in headers,

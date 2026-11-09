@@ -60,6 +60,13 @@ def validate(doc):
     num(doc, 'mmPerYear', 1e-12, 100)
     if doc.get('timeUnit', 'auto') not in ('auto', 'years', 'thousands', 'millions'):
         raise ValueError('Invalid time unit.')
+    for key in ('labelInterval', 'minorTickInterval'):
+        if key in doc:
+            interval = num(doc, key, 0, 2 * MAX_YEAR)
+            if not isinstance(interval, int):
+                raise ValueError(f'{key} must be a whole number of years (0 means automatic).')
+    if not isinstance(doc.get('majorGrid', False), bool):
+        raise ValueError('Invalid major grid setting.')
     num(doc, 'height', 200, 4000)
     color(doc, 'background')
     if doc.get('scale') not in ('top', 'bottom', 'both', 'none'):
@@ -170,15 +177,19 @@ def validate(doc):
         translations(e, {'label': 250})
         num(e, 'y', 0, doc['height'])
         num(e, 'height', 1, doc['height'])
-        if 'endY' in e:
-            num(e, 'endY', -4000, 8000)
-        endpoint = text(e, 'endBarId', 80, False)
-        if endpoint:
-            bar = bar_ids.get(endpoint)
-            if not bar or not ordinal(bar['start']) <= ordinal(e['year']) <= ordinal(bar['end']):
-                raise ValueError('The event endpoint needs a time bar active at the event year.')
-        if e.get('endEdge', 'center') not in ('top', 'center', 'bottom'):
-            raise ValueError('Invalid event endpoint alignment.')
+        for side in ('start', 'end'):
+            if side + 'Y' in e:
+                num(e, side + 'Y', -4000, 8000)
+            endpoint = text(e, side + 'BarId', 80, False)
+            axis = e.get(side + 'Axis', '')
+            if axis not in ('', 'top', 'bottom') or (axis and endpoint):
+                raise ValueError('Choose either an axis or a time bar for each event endpoint.')
+            if endpoint:
+                bar = bar_ids.get(endpoint)
+                if not bar or not ordinal(bar['start']) <= ordinal(e['year']) <= ordinal(bar['end']):
+                    raise ValueError('Both event endpoints must exist at the event year.')
+            if e.get(side + 'Edge', 'center') not in ('top', 'center', 'bottom'):
+                raise ValueError('Invalid event endpoint alignment.')
         num(e, 'width', .25, 20)
         color(e, 'color')
         if e.get('layer') not in ('under', 'over'):

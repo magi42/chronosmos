@@ -73,15 +73,63 @@ export function yearLabel(y, lang = "en", unit = "auto") {
         : "";
   return number + suffix + (y < 0 ? ` ${lang === "fi" ? "eaa." : "BCE"}` : "");
 }
-export function eventEndY(d, event) {
-  const bar = d.bars.find((b) => b.id === event.endBarId);
-  if (!bar) return event.endY ?? event.y + event.height;
-  const section = barSectionAt(d, bar, event.year);
+export const axisY = (d, axis) => (axis === "top" ? 55 : d.height - 50);
+export function eventEndpointY(d, event, side) {
+  const axis = event[side + "Axis"];
+  if (axis) return axisY(d, axis);
+  const bar = d.bars.find((b) => b.id === event[side + "BarId"]);
+  if (bar) {
+    const section = barSectionAt(d, bar, event.year);
+    return (
+      section.y +
+      section.height *
+        { top: 0, center: 0.5, bottom: 1 }[event[side + "Edge"] ?? "center"]
+    );
+  }
   return (
-    section.y +
-    section.height *
-      { top: 0, center: 0.5, bottom: 1 }[event.endEdge ?? "center"]
+    event[side + "Y"] ?? (side === "start" ? event.y : event.y + event.height)
   );
+}
+export const eventStartY = (d, event) => eventEndpointY(d, event, "start");
+export const eventEndY = (d, event) => eventEndpointY(d, event, "end");
+export function eventYearRange(d, event) {
+  const bars = d.bars.filter(
+    (b) => b.id === event.startBarId || b.id === event.endBarId,
+  );
+  return {
+    start: Math.max(-MAX_YEAR, ...bars.map((b) => ordinal(b.start))),
+    end: Math.min(MAX_YEAR - 1, ...bars.map((b) => ordinal(b.end))),
+  };
+}
+const niceInterval = (desired) => {
+  const power = 10 ** Math.floor(Math.log10(Math.max(1, desired)));
+  return [1, 2, 5, 10].find((n) => n * power >= desired) * power;
+};
+function intervalYears(d, interval, boundaries = false, minimumYears = 1) {
+  // Bound both automatic and authored intervals on geological timelines.
+  const stride = Math.max(
+    1,
+    Math.ceil((ordinal(d.end) - ordinal(d.start)) / interval / 12000),
+    Math.ceil(minimumYears / interval),
+  );
+  const step = interval * stride;
+  const years = new Set(boundaries ? [d.start, d.end] : []);
+  if (d.start <= 1 && d.end >= 1) years.add(1);
+  for (let year = Math.ceil(d.start / step) * step; year <= d.end; year += step)
+    if (year !== 0) years.add(year);
+  return [...years].sort((a, b) => a - b);
+}
+export function axisTicks(d, horizontalScale = 1, pixelScale = 1) {
+  const unit = pixelsPerYear(d) * horizontalScale * pixelScale;
+  const span = ordinal(d.end) - ordinal(d.start);
+  const minor =
+    d.minorTickInterval || niceInterval(Math.max(1, 6 / unit, span / 12000));
+  const major =
+    d.labelInterval || niceInterval(Math.max(1, 75 / unit, span / 12000));
+  return {
+    minor: intervalYears(d, minor, true, 6 / unit),
+    major: intervalYears(d, major, !d.labelInterval, 12 / unit),
+  };
 }
 export function renderTimeline(
   d,
@@ -107,40 +155,21 @@ export function renderTimeline(
     selected?.kind === kind && selected.id === o.id
       ? `<rect x="${xx - 4}" y="${yy - 4}" width="${Math.max(w + 8, 12)}" height="${h + 8}" fill="none" stroke="#315d50" stroke-width="1.5" stroke-dasharray="5 3" pointer-events="none"/>`
       : "";
+  const ticks = axisTicks(d, horizontalScale, pixelScale);
+  const majorYears = new Set(ticks.major);
   function ruler(y, bottom) {
-    const span = ordinal(d.end) - ordinal(d.start),
-      maxTicks = 12000;
-    const desired = Math.max(
-      1,
-      6 / (pixelsPerYear(d) * horizontalScale * pixelScale),
-      span / maxTicks,
+    let out = `<g class="time-axis ${bottom ? "bottom-axis" : "top-axis"}" fill="#69685f" stroke="#c4c0b4" font-family="Arial, sans-serif" font-size="11"><line class="axis-line" x1="${PAD}" x2="${width - PAD}" y1="${y}" y2="${y}"/>`;
+    const years = [...new Set([...ticks.minor, ...ticks.major])].sort(
+      (a, b) => a - b,
     );
-    const power = 10 ** Math.floor(Math.log10(desired));
-    const step = [1, 2, 5, 10].find((n) => n * power >= desired) * power;
-    let out = `<g fill="#69685f" stroke="#c4c0b4" font-family="Arial, sans-serif" font-size="11"><line x1="${PAD}" x2="${width - PAD}" y1="${y}" y2="${y}"/>`;
-    // Tick values are historical years, not multiples of astronomical year zero.
-    const years = new Set([
-      d.start,
-      d.end,
-      ...(d.start < 1 && d.end >= 1 ? [1] : []),
-    ]);
-    for (
-      let year = Math.ceil(d.start / step) * step;
-      year <= d.end;
-      year += step
-    )
-      if (year !== 0) years.add(year);
-    const sorted = [...years].sort((a, b) => a - b),
-      labelSpacing = 75 / pixelScale;
     let lastLabel = -Infinity;
-    for (const year of sorted) {
+    for (const year of years) {
       const xx = x(year),
-        major = year % 100 === 0 || year === 1,
-        decade = year % 10 === 0,
-        len = major ? 11 : decade ? 8 : 4;
-      out += `<line x1="${xx}" x2="${xx}" y1="${y}" y2="${y + (bottom ? -len : len)}"/>`;
-      if (xx - lastLabel >= labelSpacing || year === 1) {
-        out += `<text x="${xx}" y="${y + (bottom ? 23 : -15)}" text-anchor="middle" stroke="none">${esc(yearLabel(year, language, d.timeUnit))}</text>`;
+        major = majorYears.has(year);
+      const len = major ? 11 : year % 10 === 0 ? 8 : 4;
+      out += `<line class="${major ? "major-tick" : "minor-tick"}" data-year="${year}" x1="${xx}" x2="${xx}" y1="${y}" y2="${y + (bottom ? -len : len)}"/>`;
+      if (major && (xx - lastLabel >= 75 / pixelScale || year === 1)) {
+        out += `<text data-year="${year}" x="${xx}" y="${y + (bottom ? 23 : -15)}" text-anchor="middle" stroke="none">${esc(yearLabel(year, language, d.timeUnit))}</text>`;
         lastLabel = xx;
       }
     }
@@ -148,10 +177,17 @@ export function renderTimeline(
   }
   function event(e) {
     const xx = x(e.year),
-      end = eventEndY(d, e);
-    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${end}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${e.y}" y2="${end}" stroke="transparent" stroke-width="12"/>` : ""}<text x="${xx + 7}" y="${e.y - 9}" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, Math.min(e.y, end), 1, Math.abs(end - e.y))}</g>`;
+      start = eventStartY(d, e),
+      end = eventEndY(d, e),
+      labelY = e.startAxis === "top" ? start + 26 : start - 9;
+    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="transparent" stroke-width="12"/>` : ""}<text x="${xx + 7}" y="${labelY}" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, Math.min(start, end), 1, Math.abs(end - start))}</g>`;
   }
   let content = `<rect width="${width}" height="${height}" fill="${d.background}"/>`;
+  if (d.majorGrid) {
+    const top = axisY(d, "top"),
+      bottom = axisY(d, "bottom");
+    content += `<g class="major-grid" stroke="#d8d5ca" stroke-width="0.75" aria-hidden="true">${ticks.major.map((year) => `<g data-year="${year}"><line class="major-grid-line" x1="${x(year)}" x2="${x(year)}" y1="${top}" y2="${bottom}"/><line x1="${x(year)}" x2="${x(year)}" y1="${top - 8}" y2="${top}"/><line x1="${x(year)}" x2="${x(year)}" y1="${bottom}" y2="${bottom + 8}"/></g>`).join("")}</g>`;
+  }
   content += d.events
     .filter((e) => e.layer === "under")
     .map(event)
@@ -239,8 +275,9 @@ export function renderTimeline(
     .filter((e) => e.layer === "over")
     .map(event)
     .join("");
-  if (d.scale === "top" || d.scale === "both") content += ruler(55, false);
+  if (d.scale === "top" || d.scale === "both")
+    content += ruler(axisY(d, "top"), false);
   if (d.scale === "bottom" || d.scale === "both")
-    content += ruler(height - 50, true);
+    content += ruler(axisY(d, "bottom"), true);
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthMm}mm" height="${heightMm}mm" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(textFor(d, "title", language))}" font-family="Arial, sans-serif"><title>${esc(textFor(d, "title", language))}</title><desc>${esc(textFor(d, "description", language))}</desc><defs>${defs.join("")}</defs>${content}</svg>`;
 }

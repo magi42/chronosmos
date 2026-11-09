@@ -395,17 +395,55 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click("#save");
   assert.equal(serverDoc.bars[0].heightPeriods[0].height, 72);
   const periodStart = serverDoc.bars[0].heightPeriods[0].start;
+  const tabKey = (selector, shiftKey = false) => {
+    const control = $(selector);
+    control.focus();
+    control.dispatchEvent(
+      new dom.window.KeyboardEvent("keydown", {
+        key: "Tab",
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  };
+  $('[data-period-field="height"]').value = "74";
+  tabKey('[data-period-field="height"]');
+  assert.equal(
+    document.activeElement.dataset.removePeriod,
+    serverDoc.bars[0].heightPeriods[0].id,
+  );
+  await click("#save");
+  assert.equal(serverDoc.bars[0].heightPeriods[0].height, 74);
   await click("[data-remove-period]");
   assert.equal(document.querySelectorAll("[data-height-period]").length, 0);
   await click("#undo");
   assert.equal(document.querySelectorAll("[data-height-period]").length, 1);
-  await click('[data-tab="branches"]');
+  await click('[data-tab="bars"]');
   await click('[data-add="branch"]');
   setField("fromYear", -1);
   setField("toYear", -200);
   await click("#save");
   assert.equal(serverDoc.branches.length, 1);
   assert.equal(serverDoc.branches[0].fromYear, -1);
+  const branchId = serverDoc.branches[0].id;
+  assert.equal(
+    $(`#layer-list [data-id="${branchId}"]`).closest("[data-source-bar]")
+      .dataset.sourceBar,
+    "egypt",
+  );
+  assert.ok($('[data-tab="bars"]').classList.contains("active"));
+  setField("fromBarId", "jewish");
+  assert.equal(
+    $(`#layer-list [data-id="${branchId}"]`).closest("[data-source-bar]")
+      .dataset.sourceBar,
+    "jewish",
+  );
+  await click('[data-toggle-bar="jewish"]');
+  assert.equal($("#branches-jewish").hidden, true);
+  await click('[data-toggle-bar="jewish"]');
+  await click(`#layer-list [data-id="${branchId}"]`);
+  setField("fromBarId", "egypt");
   await click('[data-tab="bars"]');
   await click('#layer-list [data-id="egypt"]');
   await click('[data-tab="events"]');
@@ -416,11 +454,41 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   setField("endEdge", "bottom");
   await click('[data-tab="bars"]');
   await click('#layer-list [data-id="egypt"]');
+  $("#field-y").value = "250";
+  tabKey("#field-y");
+  assert.equal(document.activeElement.id, "field-height");
+  $("#field-height").value = "32";
+  tabKey("#field-height", true);
+  assert.equal(document.activeElement.id, "field-y");
+  assert.equal($("#field-height").value, "32");
+  await click("#document-settings");
+  $("#field-labelInterval").value = "1000";
+  tabKey("#field-labelInterval");
+  assert.equal(document.activeElement.id, "field-minorTickInterval");
+  $("#field-minorTickInterval").value = "100";
+  tabKey("#field-minorTickInterval");
+  assert.equal(document.activeElement.id, "field-majorGrid");
+  setField("majorGrid", "true");
+  $("#field-title").value = "Pending title via Tab";
+  tabKey("#field-title");
+  assert.equal(document.activeElement.id, "field-slug");
+  tabKey("#field-slug", true);
+  assert.equal(document.activeElement.id, "field-title");
+  assert.equal($("#field-title").value, "Pending title via Tab");
+  tabKey("#field-title", true);
+  assert.equal(document.activeElement.id, "language-title");
+  tabKey("#language-title");
+  assert.equal(document.activeElement.id, "field-title");
+  await click('[data-tab="bars"]');
+  await click('#layer-list [data-id="egypt"]');
   const oldStart = Number($("#field-start").value);
   dragElement('#canvas [data-id="egypt"] path', 40, 10);
   assert.equal(Number($("#field-start").value), oldStart);
   dragElement('#canvas [data-id="egypt"] path', 2 * UNIT * fitZoom, 5, true);
   await click("#save");
+  assert.equal(serverDoc.labelInterval, 1000);
+  assert.equal(serverDoc.minorTickInterval, 100);
+  assert.equal(serverDoc.majorGrid, true);
   assert.equal(serverDoc.branches[0].fromYear, 2);
   assert.equal(serverDoc.events[0].year, 2);
   assert.equal(serverDoc.events[0].endBarId, "egypt");
@@ -438,5 +506,70 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click("#undo");
   await click("#save");
   assert.equal(serverDoc.branches.length, 1);
+  await click('[data-tab="events"]');
+  await click('#layer-list [data-id="event1"]');
+  setField("startBarId", "@top");
+  assert.equal($("#field-y"), null);
+  setField("endBarId", "@bottom");
+  await click("#save");
+  assert.equal(serverDoc.events[0].startAxis, "top");
+  assert.equal(serverDoc.events[0].endAxis, "bottom");
+  assert.equal(serverDoc.events[0].endBarId, undefined);
+  assert.equal(
+    Number($('#canvas [data-id="event1"] line').getAttribute("y1")),
+    55,
+  );
+  assert.equal(
+    Number($('#canvas [data-id="event1"] line').getAttribute("y2")),
+    serverDoc.height - 50,
+  );
+  setField("startBarId", "egypt");
+  setField("startEdge", "top");
+  setField("endBarId", "jewish");
+  setField("endEdge", "bottom");
+  await click("#save");
+  assert.equal(serverDoc.events[0].startBarId, "egypt");
+  assert.equal(serverDoc.events[0].endBarId, "jewish");
+  setField("endBarId", "islam");
+  assert.equal($("#field-endBarId").value, "jewish");
+  const anchoredStart = Number(
+    $('#canvas [data-id="event1"] line').getAttribute("y1"),
+  );
+  const anchoredEnd = Number(
+    $('#canvas [data-id="event1"] line').getAttribute("y2"),
+  );
+  await click('[data-tab="bars"]');
+  await click('#layer-list [data-id="egypt"]');
+  dragElement(
+    '#canvas [data-id="egypt"] path',
+    10000 * UNIT * fitZoom,
+    0,
+    true,
+  );
+  await click("#save");
+  assert.equal(
+    serverDoc.events[0].year,
+    serverDoc.bars.find((b) => b.id === "jewish").end,
+  );
+  await click("#undo");
+  await click("#delete-element");
+  await click("#save");
+  assert.equal(serverDoc.events[0].startBarId, undefined);
+  assert.equal(serverDoc.events[0].endBarId, "jewish");
+  assert.equal(
+    Number($('#canvas [data-id="event1"] line').getAttribute("y1")),
+    anchoredStart,
+  );
+  assert.equal(
+    Number($('#canvas [data-id="event1"] line').getAttribute("y2")),
+    anchoredEnd,
+  );
+  await click("#undo");
+  await click('[data-tab="events"]');
+  await click('#layer-list [data-id="event1"]');
+  setField("startBarId", "");
+  setField("endBarId", "");
+  assert.ok($("#field-startY"));
+  assert.ok($("#field-endY"));
   dom.window.close();
 });

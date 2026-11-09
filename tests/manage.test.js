@@ -123,6 +123,16 @@ test("manage opens a chooser without auto-loading, creates and saves geological 
   assert.equal(location.search, "?timeline=created");
   assert.ok(parseFloat($("#canvas svg").style.width) < 10000);
   assert.equal(parseFloat($("#canvas svg").style.height), 820);
+  $("#field-labelInterval").focus();
+  $("#field-labelInterval").dispatchEvent(
+    new dom.window.KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+  assert.equal(document.activeElement.id, "field-minorTickInterval");
+  assert.equal($("#save-status").textContent, "Draft saved");
   set("timeUnit", "years");
   assert.equal(Number($("#field-mmPerYear").value), 0.00001);
   await $('[data-add="bar"]').onclick();

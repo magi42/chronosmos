@@ -6,6 +6,9 @@ import { textFor } from "../chronosmos/static/content.js";
 import {
   yearLabel,
   eventEndY,
+  eventStartY,
+  axisY,
+  axisTicks,
   pixelsPerYear,
   ordinal,
   historical,
@@ -386,4 +389,105 @@ test("event endpoints attach to the actual bar section, follow movement, and all
   delete event.endBarId;
   event.endY = absolute;
   assert.equal(eventEndY(doc, event), absolute);
+});
+
+test("authored axis intervals control labels, minor ticks and background major lines", () => {
+  const doc = {
+    ...sample,
+    start: -2000,
+    end: 2000,
+    labelInterval: 1000,
+    minorTickInterval: 100,
+    majorGrid: true,
+  };
+  const svg = parse(renderTimeline(doc, { interactive: true }));
+  assert.deepEqual(
+    [...svg.querySelectorAll(".top-axis text")].map((e) =>
+      Number(e.dataset.year),
+    ),
+    [-2000, -1000, 1, 1000, 2000],
+  );
+  assert.ok(svg.querySelector('.top-axis .minor-tick[data-year="-1900"]'));
+  assert.ok(!svg.querySelector('[data-year="0"]'));
+  assert.equal(
+    svg.querySelector(".top-axis .axis-line").getAttribute("y1"),
+    "55",
+  );
+  const major = svg.querySelector('.major-grid [data-year="1000"]');
+  const lines = [...major.querySelectorAll("line")];
+  assert.equal(lines.length, 3);
+  assert.equal(Number(lines[0].getAttribute("y1")), 55);
+  assert.equal(Number(lines[0].getAttribute("y2")), doc.height - 50);
+  assert.equal(Number(lines[1].getAttribute("y1")), 47);
+  assert.equal(Number(lines[2].getAttribute("y2")), doc.height - 42);
+  assert.ok(
+    svg
+      .querySelector(".major-grid")
+      .compareDocumentPosition(svg.querySelector('[data-id="egypt"]')) & 4,
+  );
+  const zoomed = parse(renderTimeline(doc, { horizontalScale: 4 }));
+  assert.equal(
+    zoomed.querySelector(".major-grid-line").getAttribute("y2"),
+    lines[0].getAttribute("y2"),
+  );
+  assert.equal(
+    svg.querySelector(".major-grid-line").getAttribute("x1"),
+    String(xFor(doc, -2000)),
+  );
+  assert.equal(
+    parse(renderTimeline({ ...doc, majorGrid: false })).querySelector(
+      ".major-grid",
+    ),
+    null,
+  );
+  for (const year of axisTicks({
+    ...doc,
+    start: -1e12,
+    end: 1e12,
+    labelInterval: 1,
+    minorTickInterval: 1,
+  }).major)
+    assert.notEqual(year, 0);
+  assert.ok(
+    axisTicks({
+      ...doc,
+      start: -1e12,
+      end: 1e12,
+      labelInterval: 1,
+      minorTickInterval: 1,
+    }).minor.length <= 12005,
+  );
+});
+
+test("event sources and targets independently attach to either axis or a time bar", () => {
+  const doc = structuredClone(sample);
+  const event = {
+    ...doc.events[0],
+    year: -1,
+    startBarId: "egypt",
+    startEdge: "bottom",
+    endAxis: "top",
+  };
+  doc.events = [event];
+  const section = barSectionAt(doc, doc.bars[0], -1);
+  assert.equal(eventStartY(doc, event), section.y + section.height);
+  assert.equal(eventEndY(doc, event), axisY(doc, "top"));
+  for (const source of ["top", "bottom"])
+    for (const target of ["top", "bottom"]) {
+      delete event.startBarId;
+      event.startAxis = source;
+      event.endAxis = target;
+      for (const horizontalScale of [0.5, 3]) {
+        const svg = parse(
+          renderTimeline(doc, { horizontalScale, interactive: true }),
+        );
+        const line = svg.querySelector('[data-kind="events"] line');
+        assert.equal(Number(line.getAttribute("y1")), axisY(doc, source));
+        assert.equal(Number(line.getAttribute("y2")), axisY(doc, target));
+      }
+    }
+  event.startAxis = "bottom";
+  delete event.endAxis;
+  event.endBarId = "egypt";
+  assert.equal(eventEndY(doc, event), section.y + section.height / 2);
 });

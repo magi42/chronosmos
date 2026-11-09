@@ -44,8 +44,10 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   Changes are centered on the bar by default. **Height-change alignment** can
   instead preserve the top or bottom edge. Captions and connections use the same
   height geometry in the viewer and exports.
-- Use **Branches → Add branch** to connect a year on one bar to a year on another.
-  Both bars continue independently. The ribbon uses the bars' endpoint heights and
+- In **Bars**, select a source bar and use **Add branch** to connect it to a year
+  on another bar. Branches appear beneath their source in a collapsible list.
+  Composition rows have a 2 px gap. Both bars continue independently. The ribbon
+  uses the bars' endpoint heights and
   blends their colors; forward, reverse and same-year connections are supported.
 - Move a bar caption horizontally by dragging its text, or set **Caption year**
   in Properties. Drag the colored bar itself to move the whole bar.
@@ -64,18 +66,27 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   Uploads are limited to 12 MiB / 20 megapixels. Active SVG uploads are deliberately
   not accepted; rasterize SVG illustrations before uploading.
 - Add Events for vertical lines with independent year, position, height, width,
-  color, caption and under/over placement. Choose **End at time bar** and a top,
-  center or bottom endpoint to connect the line to the bar at its event year.
-  The endpoint follows bar movement, height changes and merges; deleting its
-  bar preserves the endpoint as a free position.
+  color, caption and under/over placement. Choose the **Line source** and **Line
+  target** independently: the top axis, bottom axis, a time bar, or a free
+  position. Bar endpoints can meet the top, center or bottom of the bar at the
+  event year. Both bars must exist at that year. Endpoints follow bar movement,
+  height changes and merges; deleting a bar preserves its endpoint as a free
+  position. Axis endpoints follow the axis when the canvas height changes.
 - Select layers or canvas objects to edit them. Drag a bar vertically by default;
   hold **Shift** to also move it in time. Its height-change periods, captions,
   anchored graphics, event lines and branch endpoints move with it. Overlays can be dragged
   freely. Use Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z for undo/redo, Ctrl/Cmd+S to
   save, and Delete to remove a selected element. The inspector offers duplication.
+  **Tab** and **Shift+Tab** commit a field and move forward or backward through
+  Properties, including translated text and height-change periods.
 - Zoom horizontally with the controls or Ctrl/Cmd+scroll. Bar heights, vertical
   spacing, type sizes and illustration dimensions stay fixed. Fit shows the entire width. The ruler
-  adds century, decade and annual ticks as you zoom in.
+  adds century, decade and annual ticks as you zoom in. In Timeline settings,
+  set **Axis label interval** and **Minor tick interval** in actual years (for
+  example 1000 and 100). A value of 0 uses automatic spacing. **Major ticks in
+  background** adds vertical guides at label years behind the composition,
+  spanning the two axes with short ticks beyond each axis. Dense labels are
+  hidden until zoomed in, and very dense tick sets are bounded for long spans.
 - **Save draft** persists editing changes. **Publish** saves and replaces the
   public snapshot. **Preview** shows the current draft without editing controls.
   **Unpublish** is in Timeline settings and keeps the editable draft.

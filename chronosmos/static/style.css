@@ -529,7 +529,7 @@ input[type="color"] {
   text-align: left;
   padding: 12px 9px;
   gap: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   border-radius: 5px;
   white-space: normal;
 }
@@ -1524,4 +1524,47 @@ dialog .dialog-close {
 }
 .managed-timeline small {
   overflow-wrap: anywhere;
+}
+
+.bar-tree,
+.branch-children {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.bar-tree-row {
+  display: flex;
+  align-items: center;
+}
+.bar-tree-row .layer-row {
+  min-width: 0;
+}
+.branch-toggle,
+.branch-toggle-placeholder {
+  width: 18px;
+  flex: 0 0 18px;
+}
+.branch-toggle {
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+}
+.branch-children {
+  margin-left: 24px;
+  padding-left: 5px;
+  border-left: 1px solid var(--line);
+}
+.branch-children .layer-row {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.branch-children .layer-swatch {
+  width: 12px;
+  height: auto;
+  background: transparent !important;
+}
+
+.bar-tree .layer-row {
+  padding-top: 2px;
+  padding-bottom: 2px;
 }

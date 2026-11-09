@@ -1,5 +1,19 @@
 export const translations = {
   en: {
+    eventSource: "Line source",
+    eventTarget: "Line target",
+    topAxis: "Top axis",
+    bottomAxis: "Bottom axis",
+    startPosition: "Start vertical position",
+    eventBarsOverlap: "The source and target bars must overlap in time.",
+    labelInterval: "Axis label interval (years)",
+    minorTickInterval: "Minor tick interval (years)",
+    majorGrid: "Major ticks in background",
+    axisIntervalHint:
+      "0 selects automatically. For example: labels every 1000 years, minor ticks every 100. Dense labels are hidden until you zoom in.",
+    on: "On",
+    off: "Off",
+
     manageIntro: "Open a draft or create a new timeline.",
     timeUnit: "Timescale labels",
     auto: "Automatic",
@@ -210,6 +224,20 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    eventSource: "Viivan lähtöpiste",
+    eventTarget: "Viivan kohdepiste",
+    topAxis: "Yläasteikko",
+    bottomAxis: "Ala-asteikko",
+    startPosition: "Lähtöpisteen pystysijainti",
+    eventBarsOverlap: "Lähtö- ja kohdepalkkien on oltava samanaikaisia.",
+    labelInterval: "Asteikon tekstiväli (vuosia)",
+    minorTickInterval: "Pienten viivojen väli (vuosia)",
+    majorGrid: "Pääviivat taustalla",
+    axisIntervalHint:
+      "0 valitsee automaattisesti. Esimerkiksi tekstit 1000 ja pienet viivat 100 vuoden välein. Tiheät tekstit tulevat näkyviin zoomattaessa.",
+    on: "Päällä",
+    off: "Pois",
+
     manageIntro: "Avaa luonnos tai luo uusi aikajana.",
     timeUnit: "Aika-asteikon merkinnät",
     auto: "Automaattinen",

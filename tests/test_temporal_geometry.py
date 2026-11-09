@@ -83,3 +83,38 @@ def test_manage_preserves_only_timeline_parameter_through_login(client):
     response = client.post('/manage/login?timeline=example&next=https://example.com', data=dict(username='editor',password='a long test password',csrf=token))
     assert response.location == '/manage?timeline=example'
     assert b'id="timeline-chooser"' in client.get('/manage').data
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda d: d.update(labelInterval=-1),
+    lambda d: d.update(labelInterval=100.5),
+    lambda d: d.update(minorTickInterval=True),
+    lambda d: d.update(minorTickInterval=2*10**12+1),
+    lambda d: d.update(majorGrid='true'),
+    lambda d: d['events'][0].update(startBarId='missing'),
+    lambda d: d['events'][0].update(startBarId='egypt',year=2026),
+    lambda d: d['events'][0].update(startAxis='invalid'),
+    lambda d: d['events'][0].update(endAxis='invalid'),
+    lambda d: d['events'][0].update(startAxis='top',startBarId='egypt'),
+    lambda d: d['events'][0].update(endAxis='bottom',endBarId='egypt'),
+    lambda d: d['events'][0].update(startEdge='invalid'),
+])
+def test_invalid_axis_settings_and_event_sources_are_rejected(client, auth, mutation):
+    doc = document()
+    mutation(doc)
+    assert client.post('/api/timelines', json=doc, headers=auth).status_code == 400
+
+
+@pytest.mark.parametrize('source,target', [('top','bottom'), ('bottom','top'), ('egypt','bottom'), ('top','jewish'), ('egypt','jewish')])
+def test_independent_event_endpoints_and_axis_settings_survive_publication(client, auth, source, target):
+    doc = document()
+    doc.update(labelInterval=1000,minorTickInterval=100,majorGrid=True)
+    event = doc['events'][0]
+    event.update(year=-1)
+    for side, value in [('start',source),('end',target)]:
+        event[side + ('Axis' if value in ('top','bottom') else 'BarId')] = value
+    created = client.post('/api/timelines',json=doc,headers=auth)
+    assert created.status_code == 201
+    ident = created.json['id']
+    assert client.post(f'/api/timelines/{ident}/publish',json=dict(published=True,revision=1),headers=auth).status_code == 200
+    assert client.get(f'/api/timelines/{ident}').json['document'] == doc

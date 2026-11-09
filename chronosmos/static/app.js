@@ -1,3 +1,4 @@
+import { wireInspectorNavigation } from "./inspector-focus.js";
 import { textFor } from "./content.js";
 import { validHeightPeriods, heightAt } from "./geometry.js";
 import { wireViewing } from "./viewing.js";
@@ -15,6 +16,8 @@ import {
   MAX_YEAR,
   timeUnitFactor,
   eventEndY,
+  eventStartY,
+  eventYearRange,
   PAD,
   esc,
 } from "./timeline.js";
@@ -39,6 +42,7 @@ let doc = null,
 let toastTimer;
 let textEditorKey = "";
 const textFieldLanguages = new Map();
+const collapsedBars = new Set();
 function toast(message, error = false) {
   const e = $("#toast");
   e.textContent = message;
@@ -125,11 +129,15 @@ function normalizeAttachments() {
     }
   }
   for (const event of doc.events) {
-    const bar = doc.bars.find((b) => b.id === event.endBarId);
-    if (bar) {
-      event.year = clampYearToBar(bar, event.year);
-      event.endY = eventEndY(doc, event);
+    const range = eventYearRange(doc, event);
+    event.year = historical(
+      Math.max(range.start, Math.min(range.end, ordinal(event.year))),
+    );
+    if (event.startBarId || event.startAxis) {
+      event.startY = eventStartY(doc, event);
+      event.y = Math.max(0, Math.min(doc.height, event.startY));
     }
+    if (event.endBarId || event.endAxis) event.endY = eventEndY(doc, event);
   }
   for (const branch of doc.branches ?? []) {
     const from = doc.bars.find((b) => b.id === branch.fromBarId),
@@ -424,32 +432,58 @@ function renderLayers() {
     b.classList.toggle("active", b.dataset.tab === tab),
   );
   const items = doc?.[tab] || [];
-  list.innerHTML = items.length
-    ? items
-        .map(
-          (item, i) =>
-            `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-id="${item.id}"><span class="layer-swatch ${tab === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${tab === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(tab === "branches" ? branchLabel(item) : textFor(item, "label", language) || textFor(item, "text", language).split("\n")[0] || t(item.type) || t("event"))}</strong><small>${tab === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : tab === "branches" ? esc(yearLabel(item.fromYear, language) + " → " + yearLabel(item.toYear, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`,
-        )
-        .join("")
-    : `<p class="subtle empty-layers">${esc(t("noLayers"))}</p>`;
-  list.querySelectorAll("[data-id]").forEach(
-    (b) =>
-      (b.onclick = () => {
-        selected = { kind: tab, id: b.dataset.id };
+  const row = (item, kind, i) =>
+    `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-kind="${kind}" data-id="${item.id}"><span class="layer-swatch ${kind === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${kind === "branches" ? "↳" : kind === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(kind === "branches" ? branchLabel(item) : textFor(item, "label", language) || textFor(item, "text", language).split("\n")[0] || t(item.type) || t("event"))}</strong><small>${kind === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : kind === "branches" ? esc(yearLabel(item.fromYear, language) + " → " + yearLabel(item.toYear, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`;
+  list.innerHTML = !items.length
+    ? `<p class="subtle empty-layers">${esc(t("noLayers"))}</p>`
+    : tab === "bars"
+      ? `<ul class="bar-tree">${items
+          .map((bar, i) => {
+            const branches = (doc.branches ?? []).filter(
+              (branch) => branch.fromBarId === bar.id,
+            );
+            const collapsed =
+              collapsedBars.has(textEditorKey + ":" + bar.id) &&
+              !branches.some((branch) => branch.id === selected?.id);
+            return `<li data-source-bar="${bar.id}"><div class="bar-tree-row">${branches.length ? `<button class="branch-toggle" data-toggle-bar="${bar.id}" aria-expanded="${!collapsed}" aria-controls="branches-${bar.id}" aria-label="${esc(t("branches") + ": " + (textFor(bar, "label", language) || t("timeBar")))}">${collapsed ? "▸" : "▾"}</button>` : '<span class="branch-toggle-placeholder"></span>'}${row(bar, "bars", i)}</div>${branches.length ? `<ul id="branches-${bar.id}" class="branch-children" ${collapsed ? "hidden" : ""}>${branches.map((branch, j) => `<li>${row(branch, "branches", j)}</li>`).join("")}</ul>` : ""}</li>`;
+          })
+          .join("")}</ul>`
+      : items.map((item, i) => row(item, tab, i)).join("");
+  list.querySelectorAll(".layer-row").forEach(
+    (button) =>
+      (button.onclick = () => {
+        selected = { kind: button.dataset.kind, id: button.dataset.id };
         renderEditor();
+      }),
+  );
+  list.querySelectorAll("[data-toggle-bar]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const key = textEditorKey + ":" + button.dataset.toggleBar;
+        if (collapsedBars.has(key)) collapsedBars.delete(key);
+        else collapsedBars.add(key);
+        if (
+          selected?.kind === "branches" &&
+          doc.branches.find((b) => b.id === selected.id)?.fromBarId ===
+            button.dataset.toggleBar
+        )
+          selected = { kind: "bars", id: button.dataset.toggleBar };
+        renderEditor();
+        list
+          .querySelector(`[data-toggle-bar="${button.dataset.toggleBar}"]`)
+          ?.focus();
       }),
   );
   $("#add-controls").innerHTML = !doc
     ? ""
     : tab === "bars"
-      ? button("addBar", 'data-add="bar" class="add-layer"')
+      ? button("addBar", 'data-add="bar" class="add-layer"') +
+        button("addBranch", 'data-add="branch" class="add-layer"')
       : tab === "events"
         ? button("addEvent", 'data-add="event" class="add-layer"')
-        : tab === "branches"
-          ? button("addBranch", 'data-add="branch" class="add-layer"')
-          : button("addText", 'data-add="text"') +
-            button("addBox", 'data-add="box"') +
-            button("addImage", 'data-add="image"');
+        : button("addText", 'data-add="text"') +
+          button("addBox", 'data-add="box"') +
+          button("addImage", 'data-add="image"');
   $$("[data-add]").forEach(
     (b) =>
       (b.onclick = action(() =>
@@ -494,6 +528,7 @@ function wireHeightPeriods(el, bar) {
         const id = input.closest("[data-height-period]").dataset.heightPeriod;
         const periods = structuredClone(bar.heightPeriods ?? []);
         const period = periods.find((p) => p.id === id);
+        if (period[input.dataset.periodField] === Number(input.value)) return;
         period[input.dataset.periodField] = Number(input.value);
         if (!validHeightPeriods(bar, periods)) {
           toast(t("invalidHeightPeriods"), true);
@@ -599,6 +634,33 @@ function renderInspector() {
       field("scale", "scale", "select", doc.scale, {
         choices: ["top", "bottom", "both", "none"].map((v) => [v, t(v)]),
       }) +
+      number(
+        "labelInterval",
+        "labelInterval",
+        doc.labelInterval ?? 0,
+        0,
+        2 * MAX_YEAR,
+      ) +
+      number(
+        "minorTickInterval",
+        "minorTickInterval",
+        doc.minorTickInterval ?? 0,
+        0,
+        2 * MAX_YEAR,
+      ) +
+      `<p class="field-note">${esc(t("axisIntervalHint"))}</p>` +
+      field(
+        "majorGrid",
+        "majorGrid",
+        "select",
+        String(doc.majorGrid ?? false),
+        {
+          choices: [
+            ["false", t("off")],
+            ["true", t("on")],
+          ],
+        },
+      ) +
       color("background", "background", doc.background) +
       `<div class="inspector-divider"></div>${published ? `<a class="public-link" href="/${esc(publishedSlug)}" target="_blank" rel="noopener">/${esc(publishedSlug)} ↗</a>${button("unpublish", 'id="unpublish" class="danger-text"')}` : ""}${button("deleteTimeline", 'id="delete-timeline" class="danger-text"')}`;
   } else {
@@ -698,27 +760,69 @@ function renderInspector() {
           choices: choices(o.fromBarId),
         }) +
         number("toYear", "toYear", o.toYear, to.start, to.end);
-    } else
+    } else {
+      const endpointFields = (side) => {
+        const barId = side + "BarId",
+          axis = o[side + "Axis"];
+        const anchor = axis || o[barId];
+        return (
+          field(
+            barId,
+            side === "start" ? "eventSource" : "eventTarget",
+            "select",
+            axis ? "@" + axis : (o[barId] ?? ""),
+            {
+              choices: [
+                ["", t("freePosition")],
+                ["@top", t("topAxis")],
+                ["@bottom", t("bottomAxis")],
+                ...doc.bars.map((b) => [
+                  b.id,
+                  textFor(b, "label", language) || t("timeBar"),
+                ]),
+              ],
+            },
+          ) +
+          (o[barId]
+            ? field(
+                side + "Edge",
+                "endEdge",
+                "select",
+                o[side + "Edge"] ?? "center",
+                {
+                  choices: ["top", "center", "bottom"].map((v) => [v, t(v)]),
+                },
+              )
+            : anchor
+              ? ""
+              : side === "start"
+                ? o.startY !== undefined
+                  ? number(
+                      "startY",
+                      "startPosition",
+                      o.startY,
+                      -4000,
+                      8000,
+                      "any",
+                    )
+                  : number("y", "y", o.y, 0, doc.height)
+                : o.endY !== undefined
+                  ? number("endY", "endPosition", o.endY, -4000, 8000, "any")
+                  : number("height", "height", o.height, 1, doc.height))
+        );
+      };
+      const range = eventYearRange(doc, o);
       html +=
         field("label", "label", "text", o.label) +
-        number("year", "year", o.year, -MAX_YEAR, MAX_YEAR) +
-        number("y", "y", o.y, 0, doc.height) +
-        field("endBarId", "endBar", "select", o.endBarId ?? "", {
-          choices: [
-            ["", t("freePosition")],
-            ...doc.bars.map((b) => [
-              b.id,
-              textFor(b, "label", language) || t("timeBar"),
-            ]),
-          ],
-        }) +
-        (o.endBarId
-          ? field("endEdge", "endEdge", "select", o.endEdge ?? "center", {
-              choices: ["top", "center", "bottom"].map((v) => [v, t(v)]),
-            })
-          : o.endY !== undefined
-            ? number("endY", "endPosition", o.endY, -4000, 8000, "any")
-            : number("height", "height", o.height, 1, doc.height)) +
+        number(
+          "year",
+          "year",
+          o.year,
+          historical(range.start),
+          historical(range.end),
+        ) +
+        endpointFields("start") +
+        endpointFields("end") +
         number("width", "width", o.width, 0.25, 20, 0.25) +
         color("color", "color", o.color) +
         field("layer", "layer", "select", o.layer, {
@@ -727,6 +831,7 @@ function renderInspector() {
             ["over", t("over")],
           ],
         });
+    }
     html += `<div class="inspector-divider"></div><div class="element-actions">${button("duplicate", 'id="duplicate"')}${button("delete", 'id="delete-element" class="danger-text"')}</div>`;
   }
   el.innerHTML = html;
@@ -767,6 +872,11 @@ function renderInspector() {
     (select) =>
       (select.onchange = () => {
         const locale = select.value;
+        if (
+          locale ===
+          (textFieldLanguages.get(select.dataset.textLanguage) ?? "en")
+        )
+          return;
         commitContent(
           el.querySelector(`[data-field="${select.dataset.textField}"]`),
         );
@@ -801,6 +911,30 @@ function renderInspector() {
           return;
         }
         if (key === "mmPerYear") value /= timeUnitFactor(doc.timeUnit);
+        if (key === "majorGrid") value = value === "true";
+        const side =
+          key === "startBarId" ? "start" : key === "endBarId" ? "end" : null;
+        if (side) {
+          const previous = target[side + "Axis"]
+            ? "@" + target[side + "Axis"]
+            : (target[key] ?? "");
+          if (value === previous) return;
+        } else {
+          const defaults = {
+            timeUnit: "auto",
+            heightAlignment: "center",
+            startEdge: "center",
+            endEdge: "center",
+            labelInterval: 0,
+            minorTickInterval: 0,
+            majorGrid: false,
+            offsetY: 0,
+            anchorBarId: "",
+            mergeInto: "",
+            captionYear: target.start,
+          };
+          if (value === (target[key] ?? defaults[key])) return;
+        }
         const candidate = { ...target, [key]: value };
         if (
           "start" in candidate &&
@@ -819,6 +953,34 @@ function renderInspector() {
           input.value = target[key];
           return;
         }
+        if (side) {
+          candidate[side + "Axis"] = value.startsWith("@")
+            ? value.slice(1)
+            : "";
+          candidate[key] = value.startsWith("@") ? "" : value;
+          const range = eventYearRange(doc, candidate);
+          if (range.start > range.end) {
+            toast(t("eventBarsOverlap"), true);
+            renderInspector();
+            return;
+          }
+        }
+        if (selected?.kind === "bars" && ["start", "end"].includes(key)) {
+          const edited = {
+            ...doc,
+            bars: doc.bars.map((bar) => (bar === target ? candidate : bar)),
+          };
+          if (
+            doc.events.some((event) => {
+              const range = eventYearRange(edited, event);
+              return range.start > range.end;
+            })
+          ) {
+            toast(t("eventBarsOverlap"), true);
+            input.value = target[key];
+            return;
+          }
+        }
         change(() => {
           if (key === "anchorBarId") {
             const position = overlayPosition(doc, target);
@@ -832,10 +994,24 @@ function renderInspector() {
               delete target.offsetY;
             }
           }
-          if (key === "endBarId") {
-            target.endY = eventEndY(doc, target);
-          }
-          target[key] = value;
+          if (side) {
+            if (
+              side === "start" &&
+              !target.endBarId &&
+              !target.endAxis &&
+              target.endY === undefined
+            )
+              target.endY = eventEndY(doc, target);
+            const position =
+              side === "start"
+                ? eventStartY(doc, target)
+                : eventEndY(doc, target);
+            target[side + "Y"] = position;
+            delete target[side + "Axis"];
+            delete target[key];
+            if (value.startsWith("@")) target[side + "Axis"] = value.slice(1);
+            else if (value) target[key] = value;
+          } else target[key] = value;
           if (key === "height" && target === doc) {
             doc.bars.forEach((b) => (b.y = Math.min(b.y, doc.height - 60)));
             doc.events.forEach((e) => {
@@ -856,9 +1032,17 @@ function renderInspector() {
         if (
           selected.kind === "events" &&
           !clone.endBarId &&
+          !clone.endAxis &&
           clone.endY !== undefined
         )
           clone.endY = Math.min(8000, clone.endY + clone.y - o.y);
+        if (
+          selected.kind === "events" &&
+          !clone.startBarId &&
+          !clone.startAxis &&
+          clone.startY !== undefined
+        )
+          clone.startY = Math.min(8000, clone.startY + clone.y - o.y);
         if (clone.anchorBarId)
           clone.offsetY = Math.min(4000, (clone.offsetY ?? 0) + 42);
         doc[selected.kind].push(clone);
@@ -869,9 +1053,16 @@ function renderInspector() {
       change(() => {
         const id = o.id;
         if (selected.kind === "bars") {
-          for (const event of doc.events.filter((e) => e.endBarId === id)) {
-            event.endY = eventEndY(doc, event);
-            delete event.endBarId;
+          for (const event of doc.events) {
+            for (const side of ["start", "end"]) {
+              if (event[side + "BarId"] === id) {
+                event[side + "Y"] =
+                  side === "start"
+                    ? eventStartY(doc, event)
+                    : eventEndY(doc, event);
+                delete event[side + "BarId"];
+              }
+            }
           }
           doc.branches = (doc.branches ?? []).filter(
             (branch) => branch.fromBarId !== id && branch.toBarId !== id,
@@ -940,8 +1131,12 @@ function addElement(type, media = null) {
     const span = ordinal(doc.end) - ordinal(doc.start),
       start = historical(ordinal(doc.start) + Math.floor(span * 0.15));
     if (type === "branch") {
-      const from = doc.bars[0],
-        to = doc.bars[1];
+      const from =
+          (selected?.kind === "bars"
+            ? selectedItem()
+            : doc.bars.find((bar) => bar.id === selectedItem()?.fromBarId)) ||
+          doc.bars[0],
+        to = doc.bars.find((bar) => bar.id !== from.id);
       const year = historical(
         Math.floor((ordinal(from.start) + ordinal(from.end)) / 2),
       );
@@ -955,7 +1150,7 @@ function addElement(type, media = null) {
           historical(Math.min(MAX_YEAR - 1, ordinal(year) + 100)),
         ),
       };
-      tab = "branches";
+      tab = "bars";
       doc.branches ??= [];
     } else if (type === "bar") {
       o = {
@@ -1012,8 +1207,9 @@ function addElement(type, media = null) {
       };
       tab = "overlays";
     }
-    doc[tab].push(o);
-    selected = { kind: tab, id: o.id };
+    const kind = type === "branch" ? "branches" : tab;
+    doc[kind].push(o);
+    selected = { kind, id: o.id };
   });
 }
 async function saveDraft() {
@@ -1058,6 +1254,7 @@ function wireDragging() {
     const kind = g.dataset.kind,
       id = g.dataset.id;
     selected = { kind, id };
+    tab = kind === "branches" ? "bars" : kind;
     if (kind === "branches") {
       renderEditor();
       return;
@@ -1078,7 +1275,7 @@ function wireDragging() {
               .map((o) => ({ id: o.id, year: o.year }))
           : [],
       eventEndpoints: doc.events
-        .filter((event) => event.endBarId === id)
+        .filter((event) => event.startBarId === id || event.endBarId === id)
         .map((event) => ({ id: event.id, year: event.year })),
       branchEndpoints: (doc.branches ?? [])
         .filter((b) => b.fromBarId === id || b.toBarId === id)
@@ -1122,13 +1319,47 @@ function wireDragging() {
         Math.min(doc.height - (drag.kind === "bars" ? 60 : 0), b.y + dy),
       ),
     );
-    if (drag.kind === "events" && !b.endBarId && b.endY !== undefined)
+    if (
+      drag.kind === "events" &&
+      !b.endBarId &&
+      !b.endAxis &&
+      b.endY !== undefined
+    )
       o.endY = Math.max(-4000, Math.min(8000, b.endY + o.y - b.y));
+    if (
+      drag.kind === "events" &&
+      !b.startBarId &&
+      !b.startAxis &&
+      b.startY !== undefined
+    )
+      o.startY = Math.max(-4000, Math.min(8000, b.startY + o.y - b.y));
     if (drag.kind === "bars") {
+      let minDelta = -MAX_YEAR - ordinal(b.start),
+        maxDelta = MAX_YEAR - 1 - ordinal(b.end);
+      for (const endpoint of drag.eventEndpoints) {
+        const event = doc.events.find((event) => event.id === endpoint.id);
+        const otherIds = [event.startBarId, event.endBarId].filter(
+          (id) => id && id !== b.id,
+        );
+        for (const id of otherIds) {
+          const other = doc.bars.find((bar) => bar.id === id);
+          minDelta = Math.max(
+            minDelta,
+            ordinal(other.start) - ordinal(endpoint.year),
+          );
+          maxDelta = Math.min(
+            maxDelta,
+            ordinal(other.end) - ordinal(endpoint.year),
+          );
+        }
+      }
       const length = ordinal(b.end) - ordinal(b.start),
         a = Math.max(
           -MAX_YEAR,
-          Math.min(MAX_YEAR - 1 - length, ordinal(b.start) + offset),
+          Math.min(
+            ordinal(b.start) + maxDelta,
+            ordinal(b.start) + Math.max(minDelta, offset),
+          ),
         );
       o.start = historical(a);
       o.end = historical(a + length);
@@ -1194,6 +1425,7 @@ function wireDragging() {
       if (g) {
         e.preventDefault();
         selected = { kind: g.dataset.kind, id: g.dataset.id };
+        tab = selected.kind === "branches" ? "bars" : selected.kind;
         renderEditor();
       }
     }
@@ -1337,6 +1569,7 @@ function openExport() {
 }
 
 async function initEditor() {
+  wireInspectorNavigation($("#inspector"));
   wireDragging();
   $("#new-timeline").onclick = action(newProject);
   $("#create-timeline").onclick = action(newProject);
