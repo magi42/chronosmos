@@ -22,7 +22,7 @@ if (( ${#missing[@]} )); then
     apt-get install -y --no-upgrade "${missing[@]}"
 fi
 id chronosmos >/dev/null 2>&1 || useradd --system --home-dir /var/lib/chronosmos --create-home --shell /usr/sbin/nologin chronosmos
-install -d -m 755 /srv/chronosmos/releases
+install -d -m 755 /srv/chronosmos /srv/chronosmos/releases
 install -d -m 750 -o chronosmos -g chronosmos /var/lib/chronosmos /var/lib/chronosmos/media
 install -d -m 750 -o root -g chronosmos /etc/chronosmos
 install -d -m 755 /var/www/letsencrypt/.well-known/acme-challenge
