@@ -1,8 +1,8 @@
 export const translations = {
   en: {
-    exportZoom: "Horizontal zoom factor",
-    exportZoomHint:
-      "Controls SVG, PNG and print. 1× uses the configured millimeters per year. Text, graphics and vertical sizes stay fixed.",
+    exportStretch: "Horizontal stretch factor (%)",
+    exportStretchHint:
+      "Controls SVG, PNG and print. 100% uses the configured millimeters per year. Text, graphics and vertical sizes stay fixed.",
 
     dottedLine: "Dotted line",
     showCaption: "Show bar caption",
@@ -218,7 +218,7 @@ export const translations = {
     printSize: "Print dimensions",
     exporting: "Preparing export…",
     pngTooLarge:
-      "This PNG is too large. Choose a lower resolution or export SVG.",
+      "This PNG is too large. Reduce the stretch or DPI, or export SVG.",
     mediaTitle: "Media library",
     mediaText:
       "Upload PNG, JPEG or WebP. Images are stored on the server filesystem.",
@@ -260,9 +260,9 @@ export const translations = {
     original: "Original size",
   },
   fi: {
-    exportZoom: "Vaakasuuntainen zoomauskerroin",
-    exportZoomHint:
-      "Vaikuttaa SVG-, PNG- ja tulostusvientiin. 1× käyttää aikajanan tulostusmittakaavaa. Tekstien, kuvien ja pystysuunnan koot säilyvät.",
+    exportStretch: "Vaakasuuntainen venytyskerroin (%)",
+    exportStretchHint:
+      "Vaikuttaa SVG-, PNG- ja tulostusvientiin. 100 % käyttää aikajanan tulostusmittakaavaa. Tekstien, kuvien ja pystysuunnan koot säilyvät.",
 
     dottedLine: "Pisteviiva",
     showCaption: "Näytä palkin teksti",
@@ -475,7 +475,8 @@ export const translations = {
     pngScale: "PNG-tarkkuus",
     printSize: "Tulostusmitat",
     exporting: "Valmistellaan vientiä…",
-    pngTooLarge: "PNG-kuva on liian suuri. Valitse pienempi tarkkuus tai SVG.",
+    pngTooLarge:
+      "PNG-kuva on liian suuri. Pienennä venytystä tai tarkkuutta tai valitse SVG.",
     mediaTitle: "Mediakirjasto",
     mediaText:
       "Lataa PNG-, JPEG- tai WebP-kuva. Kuvat tallennetaan palvelimen tiedostojärjestelmään.",

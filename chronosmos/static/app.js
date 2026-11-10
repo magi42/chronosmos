@@ -1708,19 +1708,19 @@ async function exportSvg(horizontalScale) {
 function openExport() {
   if (!doc) return;
   const dialog = $("#export-dialog"),
-    initialZoom = zoom;
-  dialog.innerHTML = `${closeButton()}<div class="eyebrow">CHRONOSMOS</div><h2>${esc(t("exportTitle"))}</h2><p>${esc(t("exportText"))}</p><label class="field"><span>${esc(t("exportZoom"))}</span><input id="export-zoom" type="number" value="${initialZoom}" min="0.05" max="32" step="any" required></label><p class="field-note">${esc(t("exportZoomHint"))}</p><div class="print-dimensions"><span>${esc(t("printSize"))}</span><strong id="export-dimensions" role="status"></strong></div><label class="field"><span>${esc(t("pngScale"))}</span><select id="png-scale"><option value="1">96 DPI</option><option value="1.5625">150 DPI</option><option value="3.125">300 DPI</option></select></label><div class="export-options">${button("svg", 'data-export="svg" class="primary"')}${button("png", 'data-export="png"')}${button("json", 'data-export="json"')}${button("packageExport", 'data-export="package"')}${button("print", 'data-export="print"')}</div><p class="field-note">${esc(t("printHint"))}</p>`;
-  const zoomInput = $("#export-zoom");
-  zoomInput.oninput = () => {
-    if (!zoomInput.checkValidity()) {
+    initialStretch = zoom * 100;
+  dialog.innerHTML = `${closeButton()}<div class="eyebrow">CHRONOSMOS</div><h2>${esc(t("exportTitle"))}</h2><p>${esc(t("exportText"))}</p><label class="field"><span>${esc(t("exportStretch"))}</span><input id="export-stretch" type="number" value="${initialStretch}" min="5" max="3200" step="any" required></label><p class="field-note">${esc(t("exportStretchHint"))}</p><div class="print-dimensions"><span>${esc(t("printSize"))}</span><strong id="export-dimensions" role="status"></strong></div><label class="field"><span>${esc(t("pngScale"))}</span><select id="png-dpi">${[96, 150, 300, 600, 1200].map((dpi) => `<option value="${dpi}">${dpi} DPI</option>`).join("")}</select></label><div class="export-options">${button("svg", 'data-export="svg" class="primary"')}${button("png", 'data-export="png"')}${button("json", 'data-export="json"')}${button("packageExport", 'data-export="package"')}${button("print", 'data-export="print"')}</div><p class="field-note">${esc(t("printHint"))}</p>`;
+  const stretchInput = $("#export-stretch");
+  stretchInput.oninput = () => {
+    if (!stretchInput.checkValidity()) {
       $("#export-dimensions").textContent = "—";
       return;
     }
-    const dim = dimensions(doc, Number(zoomInput.value), language);
+    const dim = dimensions(doc, Number(stretchInput.value) / 100, language);
     $("#export-dimensions").textContent =
       `${dim.widthMm.toFixed(1)} × ${dim.heightMm.toFixed(1)} mm`;
   };
-  zoomInput.oninput();
+  stretchInput.oninput();
   wireDialog(dialog);
   dialog.showModal();
   dialog.querySelectorAll("[data-export]").forEach(
@@ -1762,15 +1762,15 @@ function openExport() {
             );
             return;
           }
-          if (!zoomInput.reportValidity()) return;
-          const horizontalScale = Number(zoomInput.value);
+          if (!stretchInput.reportValidity()) return;
+          const horizontalScale = Number(stretchInput.value) / 100;
           const dim = dimensions(doc, horizontalScale, language);
           toast(t("exporting"));
           const svg = await exportSvg(horizontalScale);
           if (format === "svg")
             download(new Blob([svg], { type: "image/svg+xml" }), name + ".svg");
           else if (format === "png") {
-            const scale = (Number($("#png-scale").value) * 96) / 25.4;
+            const scale = Number($("#png-dpi").value) / 25.4;
             const width = Math.ceil(dim.widthMm * scale),
               height = Math.ceil(dim.heightMm * scale);
             if (width > 30000 || height > 30000 || width * height > 50_000_000)

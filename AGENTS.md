@@ -9,11 +9,12 @@
   stored `mmPerYear` always means actual millimeters per year.
 - Use the shared SVG renderer for editor, public view and SVG/PNG/print exports.
   Preserve actual SVG millimeter dimensions and embedded export illustrations.
-- Visual exports have a horizontal zoom factor initialized from the current
-  viewer/editor zoom each time the dialog opens. Use it consistently for SVG
-  geometry, live print dimensions, PNG pixel sizing and print page dimensions.
-  1× uses stored mmPerYear; text/media/vertical sizes remain fixed. JSON/package
-  exports preserve the source composition without baking in the export zoom.
+- Visual exports have a horizontal stretch factor in percent, initialized from
+  the current viewer/editor zoom × 100 each time the dialog opens. Use it consistently
+  for SVG geometry, live print dimensions, PNG pixel sizing and print page dimensions.
+  100% uses stored mmPerYear; text/media/vertical sizes remain fixed. JSON/package
+  exports preserve the source composition without baking in the export stretch.
+  PNG DPI choices are 96/150/300/600/1200; retain image-size allocation limits.
 - Timeline zoom changes only the horizontal time scale. Keep vertical positions,
   bar heights, text sizes and illustration proportions fixed, including while dragging.
 - Bar dragging changes only vertical position unless Shift is held. Horizontal

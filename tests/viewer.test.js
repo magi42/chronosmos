@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 import { dimensions } from "../chronosmos/static/timeline.js";
 
-test("compact public header switches translated title, content and exported SVG with English fallback", async () => {
+test("public viewer translations and percentage stretch apply consistently to visual exports", async () => {
   const doc = JSON.parse(
     readFileSync(
       new URL("../examples/traditions.chronosmos.json", import.meta.url),
@@ -160,8 +160,12 @@ test("compact public header switches translated title, content and exported SVG 
   const canvasWidth = $("#canvas svg").getAttribute("viewBox").split(" ")[2];
   const canvasHeight = $("#canvas svg").getAttribute("viewBox").split(" ")[3];
   $("#export-open").onclick();
-  const defaultFactor = Number($("#export-zoom").value);
-  assert.equal(String(dimensions(doc, defaultFactor, "fi").width), canvasWidth);
+  const defaultPercent = Number($("#export-stretch").value);
+  const defaultFactor = defaultPercent / 100;
+  assert.ok(
+    Math.abs(dimensions(doc, defaultFactor, "fi").width - Number(canvasWidth)) <
+      1e-9,
+  );
   let exported;
   URL.createObjectURL = (blob) => {
     exported = blob;
@@ -177,11 +181,16 @@ test("compact public header switches translated title, content and exported SVG 
   const parseSvg = (source) =>
     new DOMParser().parseFromString(source, "image/svg+xml").documentElement;
   const initialSvg = parseSvg(svg);
-  assert.equal(initialSvg.getAttribute("viewBox").split(" ")[2], canvasWidth);
+  assert.ok(
+    Math.abs(
+      Number(initialSvg.getAttribute("viewBox").split(" ")[2]) -
+        Number(canvasWidth),
+    ) < 1e-9,
+  );
   assert.equal(initialSvg.getAttribute("viewBox").split(" ")[3], canvasHeight);
-  const zoomInput = $("#export-zoom");
-  zoomInput.value = "2.5";
-  zoomInput.oninput();
+  const stretchInput = $("#export-stretch");
+  stretchInput.value = "250";
+  stretchInput.oninput();
   const chosen = dimensions(doc, 2.5, "fi");
   assert.equal(
     $("#export-dimensions").textContent,
@@ -220,9 +229,40 @@ test("compact public header switches translated title, content and exported SVG 
   assert.equal(raster.width, Math.ceil((chosen.widthMm * 96) / 25.4));
   assert.equal(raster.height, Math.ceil((chosen.heightMm * 96) / 25.4));
   assert.equal(await exported.text(), "png output");
+  const dpiInput = $("#png-dpi");
+  assert.deepEqual(
+    [...dpiInput.options].map((o) => Number(o.value)),
+    [96, 150, 300, 600, 1200],
+  );
+  const rasterBeforeLimit = raster;
+  dpiInput.value = "1200";
+  await $('[data-export="png"]').onclick();
+  assert.equal(raster, rasterBeforeLimit);
+  assert.match($("#toast").textContent, /PNG/);
+  assert.equal($('[data-export="png"]').disabled, false);
+  const originalPrintScale = doc.mmPerYear;
+  doc.mmPerYear = 0.01;
+  stretchInput.value = "200";
+  stretchInput.oninput();
+  const highResolutionSize = dimensions(doc, 2, "fi");
+  for (const dpi of [600, 1200]) {
+    dpiInput.value = String(dpi);
+    await $('[data-export="png"]').onclick();
+    assert.equal(
+      raster.width,
+      Math.ceil((highResolutionSize.widthMm * dpi) / 25.4),
+    );
+    assert.equal(
+      raster.height,
+      Math.ceil((highResolutionSize.heightMm * dpi) / 25.4),
+    );
+    assert.equal(await exported.text(), "png output");
+  }
+  doc.mmPerYear = originalPrintScale;
+  dpiInput.value = "96";
 
-  zoomInput.value = "0.75";
-  zoomInput.oninput();
+  stretchInput.value = "75";
+  stretchInput.oninput();
   const printSize = dimensions(doc, 0.75, "fi");
   let printed;
   window.print = () => {
@@ -240,9 +280,9 @@ test("compact public header switches translated title, content and exported SVG 
   );
   assert.equal($("#print-area"), null);
   const previous = exported;
-  for (const invalid of ["0", "33", ""]) {
-    zoomInput.value = invalid;
-    zoomInput.oninput();
+  for (const invalid of ["0", "3201", ""]) {
+    stretchInput.value = invalid;
+    stretchInput.oninput();
     assert.equal($("#export-dimensions").textContent, "—");
     await $('[data-export="svg"]').onclick();
     assert.equal(exported, previous);
@@ -250,8 +290,8 @@ test("compact public header switches translated title, content and exported SVG 
   $("#export-dialog").close();
   $("#zoom-in").onclick();
   $("#export-open").onclick();
-  assert.ok(Number($("#export-zoom").value) > defaultFactor);
-  assert.notEqual($("#export-zoom").value, "0.75");
+  assert.ok(Number($("#export-stretch").value) > defaultPercent);
+  assert.notEqual($("#export-stretch").value, "75");
   click($('[data-view-id="brace1"]'));
   assert.ok($("#detail-dialog svg .curly-bracket"));
   assert.match($("#detail-dialog").textContent, /Alku/);

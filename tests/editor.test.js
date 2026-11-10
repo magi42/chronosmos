@@ -325,9 +325,9 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   await click("#export-open");
   assert.ok($("#export-dialog").open);
   assert.ok($('[data-export="svg"]'));
-  assert.ok(Number($("#export-zoom").value) > 0);
-  $("#export-zoom").value = "1";
-  $("#export-zoom").oninput();
+  assert.ok(Number($("#export-stretch").value) > 0);
+  $("#export-stretch").value = "100";
+  $("#export-stretch").oninput();
   let exported;
   globalThis.URL.createObjectURL = (blob) => {
     exported = blob;
