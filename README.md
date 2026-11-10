@@ -366,3 +366,15 @@ their sizes. Resizing the window retains the relative percentage.
 Screen fitting does not change stored `mmPerYear`. SVG/PNG/print still use that
 physical print setting, with the export horizontal stretch initialized from the
 relative screen zoom (100% at Fit). The editor and viewer display this distinction.
+
+## Bar overlap order
+
+Select a time bar and set **Properties → Overlap order**. Higher numbers appear
+in front where bars cross or merge, including joined-period transitions. Use
+**Bring to front** or **Send to back** for a quick change. The bar’s branch
+ribbons follow its layer. Bars with the same value keep their composition order;
+the default is 0, which preserves the appearance of existing timelines.
+
+Stacking changes drawing order independently of vertical position and the Bars
+composition tree. It is included in saved/published timelines, SVG/PNG/print
+exports, JSON and timeline packages.

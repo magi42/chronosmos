@@ -1660,3 +1660,14 @@ dialog .dialog-close {
 #ai-dialog input:disabled + strong {
   opacity: 0.45;
 }
+
+.stacking-actions {
+  display: flex;
+  gap: 6px;
+  margin: -6px 0 18px;
+}
+.stacking-actions button {
+  flex: 1;
+  padding: 7px 5px;
+  font-size: 11px;
+}

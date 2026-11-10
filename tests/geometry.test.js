@@ -293,3 +293,33 @@ test("conflicting joined drafts are omitted safely from geometry while retaining
   d.joinedPeriods[0].transitionYears = 1000;
   assert.doesNotMatch(renderTimeline(d), /NaN|Infinity/);
 });
+
+test("front/back ordering keeps composition and references stable, including saturated layer values", async () => {
+  const { orderedBars, moveBarToEdge, MAX_STACK_ORDER } = await import(
+    "../chronosmos/static/stacking.js"
+  );
+  const d = structuredClone(sample),
+    ids = d.bars.map((b) => b.id),
+    selected = d.bars[0];
+  assert.equal(moveBarToEdge(d, selected.id, true), true);
+  assert.equal(orderedBars(d).at(-1).id, selected.id);
+  assert.equal(moveBarToEdge(d, selected.id, true), false);
+  assert.equal(moveBarToEdge(d, selected.id, false), true);
+  assert.equal(orderedBars(d)[0].id, selected.id);
+  d.bars.forEach((b) => (b.zIndex = MAX_STACK_ORDER));
+  moveBarToEdge(d, selected.id, true);
+  assert.equal(orderedBars(d).at(-1).id, selected.id);
+  assert.ok(d.bars.every((b) => Math.abs(b.zIndex) <= MAX_STACK_ORDER));
+  assert.equal(d.bars[1].zIndex, d.bars[2].zIndex);
+  d.bars.forEach((b) => (b.zIndex = -MAX_STACK_ORDER));
+  moveBarToEdge(d, d.bars.at(-1).id, false);
+  assert.equal(orderedBars(d)[0].id, d.bars.at(-1).id);
+  assert.deepEqual(
+    d.bars.map((b) => b.id),
+    ids,
+  );
+  assert.deepEqual(
+    d.bars.map((b) => [b.start, b.end, b.y, b.mergeInto]),
+    sample.bars.map((b) => [b.start, b.end, b.y, b.mergeInto]),
+  );
+});

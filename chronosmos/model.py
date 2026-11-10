@@ -112,6 +112,10 @@ def validate(doc):
             raise ValueError('A bar must end after it starts.')
         num(b, 'y', 60, doc['height'] - 60)
         num(b, 'height', 4, 160)
+        if 'zIndex' in b:
+            order = num(b, 'zIndex', -1000000, 1000000)
+            if not isinstance(order, int):
+                raise ValueError('Overlap order must be an integer.')
         color(b, 'background')
         color(b, 'foreground')
         num(b, 'fadeIn', 0, 2 * MAX_YEAR)

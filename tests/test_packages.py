@@ -55,6 +55,8 @@ def test_package_roundtrip_preserves_all_settings_and_media_without_overwriting(
     doc['events'][0].update(labelPosition='free',labelY=250,labelOffsetX=-20)
     doc['bars'][0].update(captionPosition='right',captionFontSize=22,captionColor='#223344',showCaption=False)
     doc['events'][0]['dotted']=True
+    doc['bars'][0]['zIndex']=7
+    doc['bars'][1]['zIndex']=-2
     doc['overlays'].append(dict(id='brace1',type='brace',year=-1,y=100,width=240,height=300,text='Group',topText='Top',bottomText='Bottom',color='#223344',fill='#ffffff',fontSize=14,braceWidth=24,strokeWidth=2,translations={'fi':{'text':'Ryhmä','topText':'Alku','bottomText':'Loppu'}}))
     created = client.post('/api/timelines',json=doc,headers=auth).json
     original = created['id']

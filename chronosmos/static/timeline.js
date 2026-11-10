@@ -1,3 +1,4 @@
+import { barPaintLayers } from "./stacking.js";
 import { textFor } from "./content.js";
 import {
   barSectionAt,
@@ -283,53 +284,56 @@ export function renderTimeline(
     .filter((e) => e.layer === "under")
     .map(event)
     .join("");
-  for (const branch of d.branches ?? []) {
-    const ribbon = branchRibbon(d, branch, xOrdinal, horizontalScale);
-    if (!ribbon) continue;
-    const id = "branch-" + branch.id;
-    const a = barSectionAt(d, ribbon.from, branch.fromYear),
-      b = barSectionAt(d, ribbon.to, branch.toYear);
-    defs.push(
-      `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${ribbon.ax}" x2="${ribbon.bx}" y1="${a.y}" y2="${b.y}"><stop offset="0%" stop-color="${ribbon.from.background}"/><stop offset="100%" stop-color="${ribbon.to.background}"/></linearGradient>`,
-    );
-    content += `<g${select("branches", { ...branch, label: textFor(ribbon.from, "label", language) + " → " + textFor(ribbon.to, "label", language) })}><path d="${ribbon.path}" fill="url(#${id})"/>${outline("branches", branch, Math.min(ribbon.ax, ribbon.bx), ribbon.top, Math.abs(ribbon.bx - ribbon.ax), ribbon.bottom - ribbon.top)}</g>`;
-  }
-  for (const b of d.bars) {
-    const a = x(b.start),
-      z = x(b.end),
-      len = z - a,
-      target = d.bars.find((t) => t.id === b.mergeInto),
-      merge = target
-        ? Math.min(b.mergeYears * pixelsPerYear(d) * horizontalScale, len)
-        : 0,
-      m = z - merge;
-    const fi =
-        Math.min(b.fadeIn * pixelsPerYear(d) * horizontalScale, len) / len,
-      fo = Math.min(b.fadeOut * pixelsPerYear(d) * horizontalScale, len) / len,
-      stops = [];
-    if (fi > 0)
-      stops.push(
-        [0, d.background],
-        [Math.min(fi, target ? 1 - merge / len : 1), b.background],
+  for (const layer of barPaintLayers(d)) {
+    for (const branch of layer.branches) {
+      const ribbon = branchRibbon(d, branch, xOrdinal, horizontalScale);
+      if (!ribbon) continue;
+      const id = "branch-" + branch.id;
+      const a = barSectionAt(d, ribbon.from, branch.fromYear),
+        b = barSectionAt(d, ribbon.to, branch.toYear);
+      defs.push(
+        `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" x1="${ribbon.ax}" x2="${ribbon.bx}" y1="${a.y}" y2="${b.y}"><stop offset="0%" stop-color="${ribbon.from.background}"/><stop offset="100%" stop-color="${ribbon.to.background}"/></linearGradient>`,
       );
-    else stops.push([0, b.background]);
-    if (target)
-      stops.push(
-        [Math.max(fi, 1 - merge / len), b.background],
-        [1, target.background],
+      content += `<g${select("branches", { ...branch, label: textFor(ribbon.from, "label", language) + " → " + textFor(ribbon.to, "label", language) })}><path d="${ribbon.path}" fill="url(#${id})"/>${outline("branches", branch, Math.min(ribbon.ax, ribbon.bx), ribbon.top, Math.abs(ribbon.bx - ribbon.ax), ribbon.bottom - ribbon.top)}</g>`;
+    }
+    for (const b of layer.bars) {
+      const a = x(b.start),
+        z = x(b.end),
+        len = z - a,
+        target = d.bars.find((t) => t.id === b.mergeInto),
+        merge = target
+          ? Math.min(b.mergeYears * pixelsPerYear(d) * horizontalScale, len)
+          : 0,
+        m = z - merge;
+      const fi =
+          Math.min(b.fadeIn * pixelsPerYear(d) * horizontalScale, len) / len,
+        fo =
+          Math.min(b.fadeOut * pixelsPerYear(d) * horizontalScale, len) / len,
+        stops = [];
+      if (fi > 0)
+        stops.push(
+          [0, d.background],
+          [Math.min(fi, target ? 1 - merge / len : 1), b.background],
+        );
+      else stops.push([0, b.background]);
+      if (target)
+        stops.push(
+          [Math.max(fi, 1 - merge / len), b.background],
+          [1, target.background],
+        );
+      else if (fo > 0)
+        stops.push([Math.max(fi, 1 - fo), b.background], [1, d.background]);
+      else stops.push([1, b.background]);
+      const grad = "grad-" + b.id,
+        clip = "clip-" + b.id;
+      const ribbon = ribbonPath(d, b, xOrdinal);
+      defs.push(
+        `<linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${a}" x2="${z}" y1="0" y2="0">${stops.map(([p, c]) => `<stop offset="${p * 100}%" stop-color="${c}"/>`).join("")}</linearGradient><clipPath id="${clip}"><rect x="${a}" y="${ribbon.top}" width="${len}" height="${ribbon.bottom - ribbon.top}"/></clipPath>`,
       );
-    else if (fo > 0)
-      stops.push([Math.max(fi, 1 - fo), b.background], [1, d.background]);
-    else stops.push([1, b.background]);
-    const grad = "grad-" + b.id,
-      clip = "clip-" + b.id;
-    const ribbon = ribbonPath(d, b, xOrdinal);
-    defs.push(
-      `<linearGradient id="${grad}" gradientUnits="userSpaceOnUse" x1="${a}" x2="${z}" y1="0" y2="0">${stops.map(([p, c]) => `<stop offset="${p * 100}%" stop-color="${c}"/>`).join("")}</linearGradient><clipPath id="${clip}"><rect x="${a}" y="${ribbon.top}" width="${len}" height="${ribbon.bottom - ribbon.top}"/></clipPath>`,
-    );
-    const path = ribbon.path;
-    const caption = barCaption(d, b);
-    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/>${b.showCaption === false ? "" : `<text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(caption.year) + caption.offsetX}" y="${caption.y}" text-anchor="${caption.anchor}" dominant-baseline="central" fill="${caption.color}" font-size="${caption.size}" ${caption.clipped ? `clip-path="url(#${clip})"` : ""}>${esc(textFor(b, "label", language))}</text>`}${outline("bars", b, a, ribbon.top, len, ribbon.bottom - ribbon.top)}</g>`;
+      const path = ribbon.path;
+      const caption = barCaption(d, b);
+      content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/>${b.showCaption === false ? "" : `<text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(caption.year) + caption.offsetX}" y="${caption.y}" text-anchor="${caption.anchor}" dominant-baseline="central" fill="${caption.color}" font-size="${caption.size}" ${caption.clipped ? `clip-path="url(#${clip})"` : ""}>${esc(textFor(b, "label", language))}</text>`}${outline("bars", b, a, ribbon.top, len, ribbon.bottom - ribbon.top)}</g>`;
+    }
   }
   for (const stored of d.overlays) {
     const o = {

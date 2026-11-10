@@ -688,3 +688,146 @@ test("curly brackets stretch vertically with three translated captions and prese
     "Top <script>",
   );
 });
+
+test("bar stacking controls merges, joined transitions and source branches in editor, viewer and exports", () => {
+  const bar = (id, y, color) => ({
+    id,
+    label: id,
+    start: -100,
+    end: 200,
+    y,
+    height: 32,
+    background: color,
+    foreground: "#ffffff",
+    fadeIn: 0,
+    fadeOut: 0,
+    mergeInto: "",
+    mergeYears: 20,
+  });
+  const d = {
+    version: 1,
+    title: "Stacking",
+    description: "",
+    slug: "stacking",
+    start: -100,
+    end: 200,
+    height: 400,
+    scale: "both",
+    mmPerYear: 1,
+    background: "#ffffff",
+    bars: [
+      bar("a", 100, "#bb3322"),
+      bar("b", 220, "#3355bb"),
+      bar("c", 160, "#228855"),
+    ],
+    overlays: [
+      {
+        id: "box",
+        type: "box",
+        year: 1,
+        y: 300,
+        width: 80,
+        height: 40,
+        text: "Box",
+        fontSize: 12,
+        color: "#000000",
+        fill: "#ffffff",
+      },
+    ],
+    events: [
+      {
+        id: "under",
+        year: -1,
+        y: 55,
+        height: 280,
+        width: 1,
+        color: "#222222",
+        label: "Under",
+        layer: "under",
+      },
+      {
+        id: "over",
+        year: 1,
+        y: 55,
+        height: 280,
+        width: 1,
+        color: "#222222",
+        label: "Over",
+        layer: "over",
+      },
+    ],
+    branches: [
+      { id: "ab", fromBarId: "a", toBarId: "b", fromYear: -80, toYear: 150 },
+      { id: "cb", fromBarId: "c", toBarId: "b", fromYear: -70, toYear: 170 },
+    ],
+    joinedPeriods: [
+      {
+        id: "join",
+        fromBarId: "a",
+        toBarId: "c",
+        start: -50,
+        end: 50,
+        transitionYears: 20,
+      },
+    ],
+  };
+  d.bars[0].end = 100;
+  d.bars[0].mergeInto = "b";
+  const fills = (svg) =>
+    [...parse(svg).querySelectorAll("path[fill]")]
+      .map((el) => el.getAttribute("fill"))
+      .filter((s) => /^url\(#(?:grad|branch)-/.test(s));
+  const before = renderTimeline(d);
+  assert.deepEqual(fills(before), [
+    "url(#branch-ab)",
+    "url(#branch-cb)",
+    "url(#grad-a)",
+    "url(#grad-b)",
+    "url(#grad-c)",
+  ]);
+  const original = JSON.stringify(d);
+  const geometry = Object.fromEntries(
+    [...parse(before).querySelectorAll("path[fill]")].map((p) => [
+      p.getAttribute("fill"),
+      p.getAttribute("d"),
+    ]),
+  );
+  const zero = structuredClone(d);
+  zero.bars.forEach((b) => (b.zIndex = 0));
+  assert.equal(renderTimeline(zero), before);
+  d.bars[0].zIndex = 2;
+  for (const mode of [{ interactive: true }, { viewing: true }, {}])
+    for (const horizontalScale of [0.5, 1, 4]) {
+      const svg = renderTimeline(d, { ...mode, horizontalScale });
+      assert.deepEqual(fills(svg), [
+        "url(#branch-cb)",
+        "url(#grad-b)",
+        "url(#grad-c)",
+        "url(#branch-ab)",
+        "url(#grad-a)",
+      ]);
+      assert.doesNotMatch(svg, /NaN|Infinity/);
+    }
+  const svg = parse(renderTimeline(d, { interactive: true }));
+  assert.deepEqual(
+    [...svg.querySelectorAll("[data-id]")].map((n) => n.dataset.id),
+    ["under", "cb", "b", "c", "ab", "a", "box", "over"],
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      [...parse(renderTimeline(d)).querySelectorAll("path[fill]")].map((p) => [
+        p.getAttribute("fill"),
+        p.getAttribute("d"),
+      ]),
+    ),
+    geometry,
+  );
+  assert.deepEqual(
+    d.bars.map((b) => b.id),
+    JSON.parse(original).bars.map((b) => b.id),
+  );
+  d.bars[1].zIndex = 3;
+  assert.equal(fills(renderTimeline(d)).at(-1), "url(#grad-b)");
+  d.bars[2].zIndex = 4;
+  assert.equal(fills(renderTimeline(d)).at(-1), "url(#grad-c)");
+});

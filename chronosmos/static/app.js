@@ -1,3 +1,4 @@
+import { orderedBars, moveBarToEdge, MAX_STACK_ORDER } from "./stacking.js";
 import { applyAIProposal } from "./ai-apply.js";
 import { fittedScreenScale } from "./screen-scale.js";
 import { openAssistant } from "./ai-editor.js";
@@ -843,6 +844,7 @@ function renderInspector() {
     const kind = selected.kind;
     html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : kind === "branches" ? "branch" : o.type))}</div><h2>${esc(kind === "branches" ? branchLabel(o) : textFor(o, "label", language) || (textFor(o, "text", language) || textFor(o, "topText", language) || textFor(o, "bottomText", language)).split("\n")[0] || t(o.type))}</h2>`;
     if (kind === "bars") {
+      const paintOrder = orderedBars(doc);
       html +=
         field("label", "label", "text", o.label) +
         field("showCaption", "showCaption", "checkbox", o.showCaption ?? true, {
@@ -913,6 +915,13 @@ function renderInspector() {
           "any",
         ) +
         color("captionColor", "captionColor", barCaption(doc, o).color) +
+        field("zIndex", "overlapOrder", "number", o.zIndex ?? 0, {
+          min: -MAX_STACK_ORDER,
+          max: MAX_STACK_ORDER,
+          step: 1,
+          hint: t("overlapOrderHint"),
+        }) +
+        `<div class="stacking-actions"><button id="bar-to-front" ${paintOrder.at(-1) === o ? "disabled" : ""}>${esc(t("bringToFront"))}</button><button id="bar-to-back" ${paintOrder[0] === o ? "disabled" : ""}>${esc(t("sendToBack"))}</button></div>` +
         `<div class="field-pair">${number("start", "start", o.start, -MAX_YEAR, MAX_YEAR)}${number("end", "end", o.end, -MAX_YEAR, MAX_YEAR)}</div><p class="field-note">${esc(t("dateHint"))}</p>` +
         number("y", "y", o.y, 60, doc.height - 60) +
         number("height", "initialHeight", o.height, 4, 160) +
@@ -1229,6 +1238,7 @@ function renderInspector() {
           const defaults = {
             timeUnit: "auto",
             heightAlignment: "center",
+            zIndex: 0,
             startEdge: "center",
             endEdge: "center",
             labelInterval: 0,
@@ -1368,7 +1378,13 @@ function renderInspector() {
         doc[selected.kind].push(clone);
         selected.id = clone.id;
       });
-  if (selected?.kind === "bars") wireJoinedPeriods(o);
+  if (selected?.kind === "bars") {
+    wireJoinedPeriods(o);
+    $("#bar-to-front").onclick = () =>
+      change(() => moveBarToEdge(doc, o.id, true));
+    $("#bar-to-back").onclick = () =>
+      change(() => moveBarToEdge(doc, o.id, false));
+  }
   if ($("#delete-element"))
     $("#delete-element").onclick = () =>
       change(() => {

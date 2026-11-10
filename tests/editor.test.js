@@ -177,6 +177,40 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
     input.value = String(value);
     input.onchange();
   };
+  const originalBarOrder = sample.bars.map((b) => b.id);
+  const canvasBarOrder = () =>
+    [...document.querySelectorAll('#canvas [data-kind="bars"]')].map(
+      (el) => el.dataset.id,
+    );
+  await click("#bar-to-front");
+  assert.equal(canvasBarOrder().at(-1), "egypt");
+  assert.equal($("#bar-to-front").disabled, true);
+  assert.deepEqual(
+    [...document.querySelectorAll(".bar-tree > li")].map(
+      (el) => el.dataset.sourceBar,
+    ),
+    originalBarOrder,
+  );
+  await click("#bar-to-back");
+  assert.equal(canvasBarOrder()[0], "egypt");
+  await click("#undo");
+  assert.equal(canvasBarOrder().at(-1), "egypt");
+  await click("#undo");
+  assert.deepEqual(canvasBarOrder(), originalBarOrder);
+  setField("zIndex", 7);
+  const stackInput = $("#field-zIndex");
+  stackInput.focus();
+  stackInput.value = "8";
+  stackInput.dispatchEvent(
+    new dom.window.KeyboardEvent("keydown", {
+      key: "Tab",
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+  assert.equal(document.activeElement.id, "bar-to-back");
+  assert.equal(Number($("#field-zIndex").value), 8);
+  assert.equal(canvasBarOrder().at(-1), "egypt");
   assert.equal($("#field-heightAlignment").value, "center");
   setField("heightAlignment", "bottom");
   setField("captionYear", -1);
@@ -397,6 +431,7 @@ test("editor adds, edits, saves, publishes, undoes and previews a composition", 
   periodHeight.onchange();
   await click("#save");
   assert.equal(serverDoc.bars[0].heightPeriods[0].height, 72);
+  assert.equal(serverDoc.bars[0].zIndex, 8);
   const periodStart = serverDoc.bars[0].heightPeriods[0].start;
   const tabKey = (selector, shiftKey = false) => {
     const control = $(selector);

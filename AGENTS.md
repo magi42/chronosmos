@@ -29,6 +29,11 @@
 - Optional `labelInterval` and `minorTickInterval` are integer elapsed years;
   0 means automatic. `majorGrid` draws label-year lines behind content with
   short outward ticks at both axes. Bound tick counts and never introduce year 0.
+- Bar zIndex is an optional integer from -1000000 to 1000000, default 0.
+  Higher values paint in front, ties keep composition order. Branch ribbons
+  follow the source bar's layer, below bars on that same layer. Preserve legacy
+  all-zero branches-first painting and do not reorder the composition array.
+  Front/back controls, exports, packages and draft/published snapshots share it.
 - Optional document `joinedPeriods` links two bars over start/end years with
   transitionYears splines inside the period. Both bars must exist throughout;
   joins cannot overlap on a bar or overlap its outgoing end merge when saved.

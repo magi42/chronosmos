@@ -1,5 +1,11 @@
 export const translations = {
   en: {
+    overlapOrder: "Overlap order",
+    overlapOrderHint:
+      "Higher values appear in front. Branches follow their source bar.",
+    bringToFront: "Bring to front",
+    sendToBack: "Send to back",
+
     joinDatesConflict:
       "Start and end must be valid years, with end after start. You can keep editing.",
     joinTransitionConflict:
@@ -320,6 +326,12 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    overlapOrder: "Päällekkäisyysjärjestys",
+    overlapOrderHint:
+      "Suurempi arvo näkyy päällimmäisenä. Haarat seuraavat lähtöpalkkiaan.",
+    bringToFront: "Tuo eteen",
+    sendToBack: "Vie taakse",
+
     joinDatesConflict:
       "Alun ja lopun tulee olla kelvollisia vuosia, loppu alun jälkeen. Voit jatkaa muokkaamista.",
     joinTransitionConflict:
