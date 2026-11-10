@@ -57,7 +57,7 @@ test("AI creates a reviewable draft, adds bars, and joined sections drag both ba
     url: "https://example.org/reference",
     title: "Archive chronology",
   };
-  const proposal = () => ({
+  const rawProposal = () => ({
     title: "Researched chronology",
     description: "Dates with evidence",
     model: "gpt-6.1-sol",
@@ -97,6 +97,89 @@ test("AI creates a reviewable draft, adds bars, and joined sections drag both ba
             },
           ],
   });
+  const proposal = () => {
+    const p = rawProposal();
+    p.translations = {
+      fi: { title: "Tutkittu aikajana", description: "Lähteistetyt vuodet" },
+    };
+    p.bars = p.bars.map((b, i) => ({
+      id: "ai-" + promptCount + "-" + i,
+      label: b.label,
+      start: b.start,
+      end: b.end,
+      y: 100 + ((stored?.bars.length ?? 0) + i) * 64,
+      height: 32,
+      background: "#526a55",
+      foreground: "#ffffff",
+      fadeIn: 0,
+      fadeOut: 0,
+      mergeInto: "",
+      mergeYears: 1,
+      translations: { fi: { label: "Suomennos " + b.label } },
+      research: {
+        model: p.model,
+        checkedAt: p.checkedAt,
+        note: b.note,
+        sources: b.sources,
+      },
+    }));
+    p.joinedPeriods =
+      promptCount === 2
+        ? [
+            {
+              id: "ai-join",
+              fromBarId: "ai-1-0",
+              toBarId: "ai-2-0",
+              start: 20,
+              end: 50,
+              transitionYears: 5,
+              research: {
+                model: p.model,
+                checkedAt: p.checkedAt,
+                note: "Marriage interval",
+                sources: [source],
+              },
+            },
+          ]
+        : [];
+    p.events =
+      promptCount === 2
+        ? [
+            {
+              id: "ai-event",
+              label: "Shared milestone",
+              year: 30,
+              y: 80,
+              height: 500,
+              width: 1,
+              color: "#223344",
+              layer: "over",
+              startBarId: "ai-1-0",
+              endBarId: "ai-2-0",
+              translations: { fi: { label: "Yhteinen merkkipaalu" } },
+              research: {
+                model: p.model,
+                checkedAt: p.checkedAt,
+                note: "Event",
+                sources: [source],
+              },
+            },
+          ]
+        : [];
+    p.translationUpdates = [];
+    if (promptCount === 3) {
+      p.bars = [];
+      p.translationUpdates = [
+        {
+          kind: "overlays",
+          id: stored.overlays[0].id,
+          language: "fi",
+          fields: [{ field: "text", text: "Suomennettu lisäteksti" }],
+        },
+      ];
+    }
+    return p;
+  };
   globalThis.fetch = async (path, options = {}) => {
     let result;
     if (path === "/api/timelines?editor=1")
@@ -132,7 +215,7 @@ test("AI creates a reviewable draft, adds bars, and joined sections drag both ba
   assert.equal($("#editor-workspace").hidden, true);
   assert.equal(document.querySelectorAll(".ai-bar").length, 3);
   assert.equal($(".research a").href, source.url);
-  $('[data-ai-bar="2"]').checked = false;
+  $('[data-ai-kind="bars"][data-ai-id="ai-1-2"]').checked = false;
   await click("#ai-apply");
   assert.equal(document.querySelectorAll(".layer-row").length, 2);
   assert.equal(writes, 0);
@@ -146,10 +229,28 @@ test("AI creates a reviewable draft, adds bars, and joined sections drag both ba
   await click("#ai-apply");
   await click("#save");
   assert.equal(stored.bars.length, 3);
+  assert.equal(stored.joinedPeriods[0].id, "ai-join");
+  assert.equal(stored.events[0].translations.fi.label, "Yhteinen merkkipaalu");
+  await click('[data-tab="overlays"]');
+  await click('[data-add="text"]');
+  await click("#save");
+  await click("#ai-open");
+  $("#ai-mode").value = "translate";
+  $("#ai-mode").onchange();
+  await $("#ai-form").onsubmit(new Event("submit"));
+  assert.ok($("#ai-apply-translations"));
+  await click("#ai-apply");
+  await click("#save");
+  assert.equal(
+    stored.overlays[0].translations.fi.text,
+    "Suomennettu lisäteksti",
+  );
+  await click('[data-tab="bars"]');
   assert.equal(stored.title, "Researched chronology");
   const a = stored.bars[0],
     b = stored.bars[1];
   await click(`#layer-list [data-id="${a.id}"]`);
+  await click('[data-remove-join="ai-join"]');
   await click("#add-joined-period");
   const setJoin = (key, value) => {
     const input = $(`[data-join-field="${key}"]`);
@@ -159,6 +260,24 @@ test("AI creates a reviewable draft, adds bars, and joined sections drag both ba
   setJoin("transitionYears", 5);
   setJoin("start", -20);
   setJoin("end", 50);
+  // Partner-first and dates-first edits keep conflicts rather than reverting input.
+  setJoin("peer", "ai-2-0");
+  assert.equal($('[data-join-field="peer"]').value, "ai-2-0");
+  assert.ok($(".has-conflict .field-conflict"));
+  const writesBeforeConflict = writes;
+  await click("#save");
+  assert.equal(writes, writesBeforeConflict);
+  setJoin("start", 20);
+  assert.equal($(".has-conflict"), null);
+  setJoin("end", -10);
+  setJoin("start", -30);
+  assert.equal(Number($('[data-join-field="start"]').value), -30);
+  assert.ok($(".has-conflict"));
+  setJoin("peer", b.id);
+  assert.equal($(".has-conflict"), null);
+  setJoin("start", -20);
+  setJoin("end", 50);
+
   // Tab commits and targets the replacement DOM control, including Shift+Tab.
   $('[data-join-field="start"]').focus();
   $('[data-join-field="start"]').dispatchEvent(

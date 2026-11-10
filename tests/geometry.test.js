@@ -272,3 +272,24 @@ test("joined periods smoothly share a seam and half heights, then resume their o
     assert.ok(ribbonPath(d, a, (at) => at * scale).path.includes("C"));
   }
 });
+
+test("conflicting joined drafts are omitted safely from geometry while retaining their input", () => {
+  const d = structuredClone(sample);
+  d.joinedPeriods = [
+    {
+      id: "invalid",
+      fromBarId: "egypt",
+      toBarId: "jewish",
+      start: 0,
+      end: 100,
+      transitionYears: 30,
+    },
+  ];
+  const original = JSON.stringify(d.joinedPeriods);
+  const svg = renderTimeline(d, { interactive: true });
+  assert.doesNotMatch(svg, /NaN|Infinity/);
+  assert.equal(JSON.stringify(d.joinedPeriods), original);
+  d.joinedPeriods[0].start = -100;
+  d.joinedPeriods[0].transitionYears = 1000;
+  assert.doesNotMatch(renderTimeline(d), /NaN|Infinity/);
+});

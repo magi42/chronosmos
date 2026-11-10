@@ -120,7 +120,9 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   remains reserved until then. Conflicting saves from other sessions are rejected
   instead of overwriting data. Download JSON before reloading after a conflict.
 
-The interface supports English and Finnish, selected from the browser's first
+The interface supports English and Finnish. A `?lang=fi` or `?lang=en` URL
+parameter takes precedence over saved preferences and browser detection; internal
+navigation and login keep the chosen language. Otherwise it uses the browser's first
 supported language preference. The language button stores an explicit preference.
 The public timeline title, description and back navigation share a compact page
 header so the timeline has more room.
@@ -299,14 +301,21 @@ export dimensions, ruler placement, escaping, and editor interactions.
 ## AI-assisted editing
 
 Configured editors can choose **New with AI** in `/manage`, or **AI assistant**
-inside a timeline to research and add bars. The server uses OpenAI's Responses
+inside a timeline to research bars, joined periods and anchored events, or fill
+missing Finnish translations. Documented marriages can become joined periods;
+individual events connect an axis to a bar, and interpersonal events connect
+the two people’s bars. The server uses OpenAI's Responses
 API with `gpt-6.1-sol`, mandatory web search and a structured proposal. Review
-all proposed years, uncertainty notes and clickable sources, select the bars,
+all proposed years, uncertainty notes and clickable sources, select the additions,
 then apply them to the unsaved draft. Saving and publishing remain explicit.
-English is the base content language; Finnish translations can be authored as usual.
+English remains the base language. New titles, descriptions and captions receive
+Finnish translations by default. The assistant also proposes missing Finnish texts
+on existing content, field by field, without replacing authored translations. Use
+**Fill missing Finnish translations** for a translation-only request without web
+research or dated additions. Deselecting a new bar disables connections that need it.
 AI research cannot replace/delete existing bars or publish a timeline.
 
-The normal deployment initializes the additive `ai_jobs` table automatically.
+The normal deployment initializes the additive `ai_jobs` and `ai_job_context` tables automatically.
 For an existing local database, run the usual `flask --app wsgi init-db` command.
 
 Set `OPENAI_API_KEY` in the server's private environment file. For deployment,
@@ -317,13 +326,15 @@ only through SSH stdin, atomically updates the private server environment,
 and restarts Chronosmos. With no file/key, it asks via a hidden terminal prompt.
 No API key is sent to browsers or included in timeline exports/packages.
 
-Requests and the existing timeline's title, years and bar names/dates are sent
-to OpenAI. Media, login credentials and unrelated content are excluded. API
+Requests and the existing timeline's texts, translations, dates and connections
+are sent to OpenAI. Media, login credentials and unrelated content are excluded. API
 usage is charged to the configured OpenAI account. Background research is
 polled by authenticated editors; one pending job per account is allowed.
 Completed proposals are cached privately until the next request. OpenAI
 background requests use `store=false`; provider retention rules still apply.
-Sources are preserved as bar `research` metadata and in timeline packages.
+Sources are preserved as bar, joined-period and event `research` metadata and
+in timeline packages. Each proposal is validated against its private source
+draft snapshot before review; the snapshot is removed when its job is replaced.
 The server requires each source URL to have been returned by web research;
 editors must still check whether it supports the dates and interpretation.
 
@@ -335,9 +346,23 @@ transition uses smooth splines inside either end of the period; between them
 the bars share a seam and each contributes half its normal thickness. Unequal
 bar heights and thickness changes are retained proportionally. Outside the
 period they resume their normal geometry. Periods must fit both bars and
-cannot overlap another joined period on either bar or an end merge.
+cannot overlap another joined period on either bar or an end merge when saved.
+While editing, conflicting values are retained: an inline warning explains the
+conflict, and that period is temporarily omitted from the canvas. Change the peer
+and dates in either order, then resolve conflicts before saving or publishing.
 
 Drag the shared section to move both bars vertically; Shift also moves both
 in time, including anchors and the joined interval. Drag outside it to move a
 single bar. Single-bar horizontal moves keep joined dates within both bars.
 The same geometry drives anchors, event endpoints, viewing and visual exports.
+
+## Screen zoom
+
+**100%** fills the available timeline width, including for short ranges such as
+1902–2026. **Fit** resets to 100%. Zoom is relative to that responsive fit and
+changes only horizontal time coordinates; vertical layout, text and images keep
+their sizes. Resizing the window retains the relative percentage.
+
+Screen fitting does not change stored `mmPerYear`. SVG/PNG/print still use that
+physical print setting, with the export horizontal stretch initialized from the
+relative screen zoom (100% at Fit). The editor and viewer display this distinction.

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
+import { fittedScreenScale } from "../chronosmos/static/screen-scale.js";
 import { dimensions } from "../chronosmos/static/timeline.js";
 
 test("public viewer translations and percentage stretch apply consistently to visual exports", async () => {
@@ -162,9 +163,12 @@ test("public viewer translations and percentage stretch apply consistently to vi
   $("#export-open").onclick();
   const defaultPercent = Number($("#export-stretch").value);
   const defaultFactor = defaultPercent / 100;
+  assert.equal(defaultPercent, 156.25);
   assert.ok(
-    Math.abs(dimensions(doc, defaultFactor, "fi").width - Number(canvasWidth)) <
-      1e-9,
+    Math.abs(
+      dimensions(doc, defaultFactor * fittedScreenScale(doc, 1136, "fi"), "fi")
+        .width - Number(canvasWidth),
+    ) < 1e-9,
   );
   let exported;
   URL.createObjectURL = (blob) => {
@@ -184,7 +188,7 @@ test("public viewer translations and percentage stretch apply consistently to vi
   assert.ok(
     Math.abs(
       Number(initialSvg.getAttribute("viewBox").split(" ")[2]) -
-        Number(canvasWidth),
+        dimensions(doc, defaultFactor, "fi").width,
     ) < 1e-9,
   );
   assert.equal(initialSvg.getAttribute("viewBox").split(" ")[3], canvasHeight);

@@ -219,7 +219,7 @@ test("caption controls, dragging and package export/import preserve the current 
   await Promise.resolve();
   $("#confirm-dialog").close("yes");
   await loading;
-  assert.equal(location.search, "?timeline=copy");
+  assert.equal(location.search, "?timeline=copy&lang=en");
   assert.equal($("#save-status").textContent, "Draft saved");
   assert.equal($("#field-title").value, "Imported copy");
   assert.deepEqual(stored, original);

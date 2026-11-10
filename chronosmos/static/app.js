@@ -1,3 +1,5 @@
+import { applyAIProposal } from "./ai-apply.js";
+import { fittedScreenScale } from "./screen-scale.js";
 import { openAssistant } from "./ai-editor.js";
 import { researchHtml } from "./research.js";
 import { textWidth } from "./text-layout.js";
@@ -6,12 +8,13 @@ import { textFor } from "./content.js";
 import { moveBars } from "./bar-motion.js";
 import {
   validJoinedPeriods,
+  joinedPeriodIssue,
   joinedPeriodAt,
   validHeightPeriods,
   heightAt,
 } from "./geometry.js";
 import { wireViewing } from "./viewing.js";
-import { t, language, translate, toggleLanguage } from "./i18n.js";
+import { t, language, languageUrl, translate, toggleLanguage } from "./i18n.js";
 import {
   renderTimeline,
   barCaption,
@@ -195,43 +198,54 @@ function updateStatus() {
 function yearRange(d) {
   return `${yearLabel(d.start, language, d.timeUnit)} — ${yearLabel(d.end, language, d.timeUnit)}`;
 }
+let screenFitCache = {};
+function screenScale() {
+  if (!doc) return zoom;
+  const width = Math.max(1, ($("#canvas-viewport").clientWidth || 1000) - 64),
+    key = raw();
+  if (
+    screenFitCache.key !== key ||
+    screenFitCache.width !== width ||
+    screenFitCache.language !== language
+  )
+    screenFitCache = {
+      key,
+      width,
+      language,
+      scale: fittedScreenScale(doc, width, language),
+    };
+  return zoom * screenFitCache.scale;
+}
 function resizeCanvas() {
   if (!doc) return;
   const svg = $("#canvas svg");
   if (!svg) return;
-  const dim = dimensions(doc, zoom, language);
+  const dim = dimensions(doc, screenScale(), language);
   svg.style.width = `${dim.width}px`;
   svg.style.height = `${dim.height}px`;
   $("#zoom-value").textContent = `${Math.round(zoom * 100)}%`;
+  $("#zoom-value").title = t("screenZoomHint");
 }
 function fit() {
   if (!doc) return;
-  const available = $("#canvas-viewport").clientWidth - 64;
-  let lo = 0.05,
-    hi = 2;
-  for (let i = 0; i < 40; i++) {
-    const candidate = (lo + hi) / 2;
-    if (dimensions(doc, candidate, language).width <= available) lo = candidate;
-    else hi = candidate;
-  }
-  zoom = lo;
+  zoom = 1;
   renderCanvas();
 }
 function setZoom(value, anchor = null) {
   if (!doc) return;
   const viewport = $("#canvas-viewport"),
-    old = zoom,
+    old = screenScale(),
     oldScrollLeft = viewport.scrollLeft,
     oldLeft = dimensions(doc, old, language).left;
   zoom = Math.min(32, Math.max(0.05, value));
   renderCanvas();
   if (anchor) {
     const offset = $("#canvas").offsetLeft;
-    const nextLeft = dimensions(doc, zoom, language).left;
+    const nextLeft = dimensions(doc, screenScale(), language).left;
     viewport.scrollLeft =
       offset +
       nextLeft +
-      ((oldScrollLeft + anchor.x - offset - oldLeft) * zoom) / old -
+      ((oldScrollLeft + anchor.x - offset - oldLeft) * screenScale()) / old -
       anchor.x;
   }
 }
@@ -245,7 +259,7 @@ function renderCanvas() {
     language,
     interactive: page === "editor" && !preview,
     viewing: page === "viewer" || preview,
-    horizontalScale: zoom,
+    horizontalScale: screenScale(),
   });
   resizeCanvas();
 }
@@ -254,6 +268,10 @@ function wireZoom() {
   $("#zoom-in").onclick = () => setZoom(zoom * 1.25);
   $("#zoom-out").onclick = () => setZoom(zoom / 1.25);
   $("#zoom-fit").onclick = fit;
+  window.addEventListener("resize", () => {
+    if (doc) renderCanvas();
+  });
+  $("#zoom-value").title = t("screenZoomHint");
   $("#canvas-viewport").addEventListener(
     "wheel",
     (e) => {
@@ -314,7 +332,7 @@ async function initGallery() {
     ? items
         .map(
           (item, i) =>
-            `<a class="timeline-card" href="/${esc(item.slug)}"><div class="card-art art-${i % 3}"><span class="card-number">${String(i + 1).padStart(2, "0")}</span><div class="art-band band-a"></div><div class="art-band band-b"></div><div class="art-band band-c"></div><div class="art-band band-d"></div><div class="art-line"></div><span class="art-year">${esc(yearLabel(item.start, language))}</span><span class="art-year end">${esc(yearLabel(item.end, language))}</span></div><div class="card-body"><div class="eyebrow">${esc(yearRange(item))} <span>· ${item.bars} ${esc(t("barCount"))}</span></div><h2>${esc(textFor(item, "title", language))}</h2><p>${esc(textFor(item, "description", language))}</p><span class="card-link">${esc(t("openTimeline"))} <span>↗</span></span></div></a>`,
+            `<a class="timeline-card" href="${esc(languageUrl("/" + item.slug))}"><div class="card-art art-${i % 3}"><span class="card-number">${String(i + 1).padStart(2, "0")}</span><div class="art-band band-a"></div><div class="art-band band-b"></div><div class="art-band band-c"></div><div class="art-band band-d"></div><div class="art-line"></div><span class="art-year">${esc(yearLabel(item.start, language))}</span><span class="art-year end">${esc(yearLabel(item.end, language))}</span></div><div class="card-body"><div class="eyebrow">${esc(yearRange(item))} <span>· ${item.bars} ${esc(t("barCount"))}</span></div><h2>${esc(textFor(item, "title", language))}</h2><p>${esc(textFor(item, "description", language))}</p><span class="card-link">${esc(t("openTimeline"))} <span>↗</span></span></div></a>`,
         )
         .join("")
     : `<div class="empty-state">${esc(t("noTimelines"))}</div>`;
@@ -338,7 +356,22 @@ function renderViewerHeading() {
   $("#viewer-range").textContent = yearRange(doc);
   const sources = $("#viewer-sources");
   if (sources) {
-    const researched = doc.bars.filter((b) => b.research);
+    const researched = [
+      ...doc.bars,
+      ...doc.events,
+      ...(doc.joinedPeriods ?? []).map((p) => ({
+        ...p,
+        label: [p.fromBarId, p.toBarId]
+          .map((id) =>
+            textFor(
+              doc.bars.find((b) => b.id === id),
+              "label",
+              language,
+            ),
+          )
+          .join(" ↔ "),
+      })),
+    ].filter((b) => b.research);
     sources.hidden = !researched.length;
     sources.querySelector("div").innerHTML = researched
       .map(
@@ -357,7 +390,7 @@ function projectURL(id) {
   history.replaceState(
     null,
     "",
-    id ? "/manage?timeline=" + encodeURIComponent(id) : "/manage",
+    languageUrl(id ? "/manage?timeline=" + encodeURIComponent(id) : "/manage"),
   );
 }
 function renderChooser() {
@@ -367,7 +400,7 @@ function renderChooser() {
     ? projects
         .map(
           (p) =>
-            `<a class="managed-timeline" href="/manage?timeline=${encodeURIComponent(p.id)}"><strong>${esc(textFor(p, "title", language))}</strong><span class="badge">${esc(t(p.published ? "live" : "draft"))}</span><p>${esc(textFor(p, "description", language))}</p><small>/${esc(p.slug ?? "")}</small></a>`,
+            `<a class="managed-timeline" href="${esc(languageUrl("/manage?timeline=" + encodeURIComponent(p.id)))}"><strong>${esc(textFor(p, "title", language))}</strong><span class="badge">${esc(t(p.published ? "live" : "draft"))}</span><p>${esc(textFor(p, "description", language))}</p><small>/${esc(p.slug ?? "")}</small></a>`,
         )
         .join("")
     : `<p>${esc(t("emptyLibrary"))}</p>`;
@@ -452,6 +485,11 @@ function renderEditor() {
   renderChooser();
   renderProjectPicker();
   $("#empty-canvas").hidden = !!doc;
+  const conflict = $("#composition-conflicts");
+  if (conflict) {
+    conflict.hidden = !doc || validJoinedPeriods(doc);
+    conflict.textContent = t("joinConflictDraft");
+  }
   $("#element-count").textContent = doc
     ? doc.bars.length +
       doc.overlays.length +
@@ -645,7 +683,7 @@ function joinedPeriodFields(bar) {
   return `<section class="height-periods"><h3>${esc(t("joinedPeriods"))}</h3>${periods
     .map((p) => {
       const otherId = p.fromBarId === bar.id ? p.toBarId : p.fromBarId;
-      return `<div class="height-period" data-joined-period="${p.id}"><label class="field"><span>${esc(t("joinWith"))}</span><select data-join-field="peer">${doc.bars
+      return `<div class="height-period ${joinedPeriodIssue(doc, p) ? "has-conflict" : ""}" data-joined-period="${p.id}">${joinedPeriodIssue(doc, p) ? `<p class="field-conflict" role="status">${esc(t(joinedPeriodIssue(doc, p)))}</p>` : ""}<label class="field"><span>${esc(t("joinWith"))}</span><select data-join-field="peer">${doc.bars
         .filter((b) => b.id !== bar.id)
         .map(
           (b) =>
@@ -653,7 +691,7 @@ function joinedPeriodFields(bar) {
         )
         .join(
           "",
-        )}</select></label>${["start", "end", "transitionYears"].map((key) => `<label class="field"><span>${esc(t(key))}</span><input type="number" data-join-field="${key}" value="${p[key]}" step="${key === "transitionYears" ? "any" : "1"}"></label>`).join("")}<button class="danger-text" data-remove-join="${p.id}">${esc(t("removePeriod"))}</button></div>`;
+        )}</select></label>${["start", "end", "transitionYears"].map((key) => `<label class="field"><span>${esc(t(key))}</span><input type="number" data-join-field="${key}" value="${p[key]}" step="${key === "transitionYears" ? "any" : "1"}"></label>`).join("")}<button class="danger-text" data-remove-join="${p.id}">${esc(t("removePeriod"))}</button>${researchHtml(p.research, t("dateSources"))}</div>`;
     })
     .join(
       "",
@@ -673,11 +711,6 @@ function wireJoinedPeriods(bar) {
         if (key === "peer")
           p[p.fromBarId === bar.id ? "toBarId" : "fromBarId"] = input.value;
         else p[key] = Number(input.value);
-        if (!validJoinedPeriods({ ...doc, joinedPeriods: periods })) {
-          toast(t("invalidJoinedPeriods"), true);
-          renderInspector();
-          return;
-        }
         change(() => (doc.joinedPeriods = periods));
       }),
   );
@@ -805,7 +838,7 @@ function renderInspector() {
         },
       ) +
       color("background", "background", doc.background) +
-      `<div class="inspector-divider"></div>${published ? `<a class="public-link" href="/${esc(publishedSlug)}" target="_blank" rel="noopener">/${esc(publishedSlug)} ↗</a>${button("unpublish", 'id="unpublish" class="danger-text"')}` : ""}${button("deleteTimeline", 'id="delete-timeline" class="danger-text"')}`;
+      `<div class="inspector-divider"></div>${published ? `<a class="public-link" href="${esc(languageUrl("/" + publishedSlug))}" target="_blank" rel="noopener">/${esc(publishedSlug)} ↗</a>${button("unpublish", 'id="unpublish" class="danger-text"')}` : ""}${button("deleteTimeline", 'id="delete-timeline" class="danger-text"')}`;
   } else {
     const kind = selected.kind;
     html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : kind === "branches" ? "branch" : o.type))}</div><h2>${esc(kind === "branches" ? branchLabel(o) : textFor(o, "label", language) || (textFor(o, "text", language) || textFor(o, "topText", language) || textFor(o, "bottomText", language)).split("\n")[0] || t(o.type))}</h2>`;
@@ -991,6 +1024,7 @@ function renderInspector() {
         }) +
         number("toYear", "toYear", o.toYear, to.start, to.end);
     } else {
+      html += researchHtml(o.research, t("dateSources"));
       const endpointFields = (side) => {
         const barId = side + "BarId",
           axis = o[side + "Axis"];
@@ -1220,17 +1254,6 @@ function renderInspector() {
           if (value === (target[key] ?? defaults[key])) return;
         }
         const candidate = { ...target, [key]: value };
-        if (
-          selected?.kind === "bars" &&
-          !validJoinedPeriods({
-            ...doc,
-            bars: doc.bars.map((b) => (b === target ? candidate : b)),
-          })
-        ) {
-          toast(t("invalidJoinedPeriods"), true);
-          input.value = target[key];
-          return;
-        }
         if (
           "start" in candidate &&
           ordinal(candidate.start) >= ordinal(candidate.end)
@@ -1528,6 +1551,7 @@ function addElement(type, media = null) {
 }
 async function saveDraft() {
   if (!doc) return;
+  if (!validJoinedPeriods(doc)) throw new Error(t("joinFixBeforeSave"));
   $("#inspector")
     .querySelectorAll("[data-content-locale]")
     .forEach((input) => input.onchange?.());
@@ -1577,14 +1601,15 @@ function wireDragging() {
     const svg = $("#canvas svg");
     const at =
       ordinal(doc.start) +
-      ((e.clientX - svg.getBoundingClientRect().left) / zoom -
-        dimensions(doc, zoom, language).left / zoom) /
+      ((e.clientX - svg.getBoundingClientRect().left) / screenScale() -
+        dimensions(doc, screenScale(), language).left / screenScale()) /
         pixelsPerYear(doc);
     const joined =
       kind === "bars" && !e.target.closest("[data-caption]")
         ? joinedPeriodAt(doc, id, at)
         : null;
     drag = {
+      scale: screenScale(),
       movingIds: joined ? [joined.fromBarId, joined.toBarId] : [id],
       snapshot: structuredClone(doc),
       id,
@@ -1608,9 +1633,12 @@ function wireDragging() {
   });
   $("#canvas").addEventListener("pointermove", (e) => {
     if (!drag) return;
-    const dx = (e.clientX - drag.x) / zoom,
+    const dx = (e.clientX - drag.x) / drag.scale,
       dy = e.clientY - drag.y;
-    if (!drag.moved && Math.abs(dx) + (drag.caption ? 0 : Math.abs(dy)) < 3)
+    if (
+      !drag.moved &&
+      Math.abs(e.clientX - drag.x) + (drag.caption ? 0 : Math.abs(dy)) < 3
+    )
       return;
     drag.moved = true;
     const o = selectedItem(),
@@ -1900,63 +1928,17 @@ async function openAI() {
     language,
     getDocument: () => doc,
     apply: async (proposal) => {
-      if (doc && doc.bars.length + proposal.bars.length > 500)
-        throw new Error(t("aiTooManyBars"));
-      if (!doc && !(await newProject())) return;
+      const creating = !doc;
+      if (creating && !(await newProject())) return;
       change(() => {
-        if (!doc.bars.length) {
-          doc.title = proposal.title || doc.title;
-          doc.description = proposal.description;
+        doc = applyAIProposal(doc, proposal, { newTimeline: creating });
+        if (proposal.bars?.length) {
+          selected = { kind: "bars", id: proposal.bars.at(-1).id };
+          tab = "bars";
+        } else if (proposal.events?.length) {
+          selected = { kind: "events", id: proposal.events.at(-1).id };
+          tab = "events";
         }
-        const colors = ["#526a55", "#8d6550", "#5f6c83", "#876780", "#8a7e4f"];
-        for (const b of proposal.bars) {
-          const index = doc.bars.length;
-          const y = Math.min(
-            3940,
-            Math.max(
-              100,
-              ...doc.bars.map((b) => b.y + Math.max(b.height, 32) + 32),
-            ),
-          );
-          doc.height = Math.max(doc.height, Math.min(4000, y + 100));
-          doc.bars.push({
-            id: uid(),
-            label: b.label,
-            start: b.start,
-            end: b.end,
-            y,
-            height: 32,
-            background: colors[index % colors.length],
-            foreground: "#ffffff",
-            fadeIn: 0,
-            fadeOut: 0,
-            mergeInto: "",
-            mergeYears: 1,
-            research: {
-              model: proposal.model,
-              checkedAt: proposal.checkedAt,
-              note: b.note,
-              sources: b.sources,
-            },
-          });
-          if (ordinal(b.start) < ordinal(doc.start)) doc.start = b.start;
-          if (ordinal(b.end) > ordinal(doc.end)) doc.end = b.end;
-        }
-        // A new composition should fit the researched dates rather than the template range.
-        if (doc.bars.length === proposal.bars.length) {
-          doc.start = doc.bars.reduce(
-            (y, b) => (ordinal(b.start) < ordinal(y) ? b.start : y),
-            doc.bars[0].start,
-          );
-          doc.end = doc.bars.reduce(
-            (y, b) => (ordinal(b.end) > ordinal(y) ? b.end : y),
-            doc.bars[0].end,
-          );
-          const span = ordinal(doc.end) - ordinal(doc.start);
-          doc.mmPerYear = Math.max(1e-12, Math.min(100, 800 / span));
-        }
-        selected = { kind: "bars", id: doc.bars.at(-1).id };
-        tab = "bars";
       });
       fit();
       toast(t("aiApplied"));
@@ -2009,7 +1991,7 @@ async function initEditor() {
     if (dirty() && !(await confirmAction(t("leaveQuestion")))) return;
     await api("/api/logout", { method: "POST" });
     savedRaw = raw();
-    location.href = "/";
+    location.href = languageUrl("/");
   });
   $("#undo").onclick = undo;
   $("#redo").onclick = redo;

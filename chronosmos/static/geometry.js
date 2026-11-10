@@ -84,7 +84,8 @@ export function joinedPeriodAt(d, barId, at) {
     (p) =>
       (p.fromBarId === barId || p.toBarId === barId) &&
       at > atYear(p.start) &&
-      at < atYear(p.end),
+      at < atYear(p.end) &&
+      !joinedPeriodIssue(d, p),
   );
 }
 export function sectionAt(d, bar, at, seen = new Set()) {
@@ -121,35 +122,49 @@ export function sectionAt(d, bar, at, seen = new Set()) {
     dh: own.dh * (1 - w / 2) - (own.height * dw) / 2,
   };
 }
-export function validJoinedPeriods(d) {
-  const occupied = new Map();
-  return (d.joinedPeriods ?? []).every((p) => {
-    const a = atYear(p.start),
-      z = atYear(p.end);
-    if (
-      ![p.start, p.end].every((v) => Number.isInteger(v) && v !== 0) ||
-      a >= z ||
-      !Number.isFinite(p.transitionYears) ||
-      p.transitionYears < 0.01 ||
-      p.transitionYears > (z - a) / 2 ||
-      p.fromBarId === p.toBarId
+export function joinedPeriodIssue(d, p) {
+  if (
+    ![p.start, p.end].every(
+      (v) => Number.isInteger(v) && v !== 0 && Math.abs(v) <= 1e12,
+    ) ||
+    atYear(p.start) >= atYear(p.end)
+  )
+    return "joinDatesConflict";
+  const a = atYear(p.start),
+    z = atYear(p.end);
+  if (
+    !Number.isFinite(p.transitionYears) ||
+    p.transitionYears < 0.01 ||
+    p.transitionYears > (z - a) / 2
+  )
+    return "joinTransitionConflict";
+  const pair = [p.fromBarId, p.toBarId].map((id) =>
+    d.bars.find((b) => b.id === id),
+  );
+  if (pair.some((b) => !b) || pair[0] === pair[1]) return "joinBarsConflict";
+  for (const b of pair) {
+    if (a < atYear(b.start) || z > atYear(b.end)) return "joinRangeConflict";
+    if (b.mergeInto && z > atYear(b.end) - b.mergeYears)
+      return "joinMergeConflict";
+  }
+  if (
+    (d.joinedPeriods ?? []).some(
+      (other) =>
+        other !== p &&
+        other.id !== p.id &&
+        [other.fromBarId, other.toBarId].some((id) =>
+          [p.fromBarId, p.toBarId].includes(id),
+        ) &&
+        [other.start, other.end].every((v) => Number.isInteger(v) && v !== 0) &&
+        a < atYear(other.end) &&
+        z > atYear(other.start),
     )
-      return false;
-    return [p.fromBarId, p.toBarId].every((id) => {
-      const b = d.bars.find((b) => b.id === id),
-        spans = occupied.get(id) ?? [];
-      if (
-        !b ||
-        a < atYear(b.start) ||
-        z > atYear(b.end) ||
-        (b.mergeInto && z > atYear(b.end) - b.mergeYears) ||
-        spans.some(([s, e]) => a < e && z > s)
-      )
-        return false;
-      occupied.set(id, [...spans, [a, z]]);
-      return true;
-    });
-  });
+  )
+    return "joinOverlapConflict";
+  return null;
+}
+export function validJoinedPeriods(d) {
+  return (d.joinedPeriods ?? []).every((p) => !joinedPeriodIssue(d, p));
 }
 export function barSectionAt(d, bar, year) {
   return sectionAt(d, bar, atYear(year));
@@ -166,7 +181,9 @@ export function ribbonPath(d, bar, x) {
   }
   if (merge) knots.add(end - merge);
   const joins = (d.joinedPeriods ?? []).filter(
-    (p) => p.fromBarId === bar.id || p.toBarId === bar.id,
+    (p) =>
+      (p.fromBarId === bar.id || p.toBarId === bar.id) &&
+      !joinedPeriodIssue(d, p),
   );
   for (const p of joins) {
     for (const at of [

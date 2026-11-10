@@ -1,3 +1,4 @@
+import { joinedPeriodIssue } from "./geometry.js";
 // Apply one constrained gesture from an immutable snapshot, including attachments.
 import { ordinal, historical, MAX_YEAR } from "./timeline.js";
 export function moveBars(doc, before, ids, dy, delta) {
@@ -27,6 +28,7 @@ export function moveBars(doc, before, ids, dy, delta) {
     }
   }
   for (const p of before.joinedPeriods ?? []) {
+    if (joinedPeriodIssue(before, p)) continue;
     const pair = [p.fromBarId, p.toBarId];
     if (
       !pair.some((id) => moving.has(id)) ||
@@ -70,6 +72,7 @@ export function moveBars(doc, before, ids, dy, delta) {
     if (moving.has(b.toBarId)) target.toYear = shift(b.toYear);
   }
   for (const p of before.joinedPeriods ?? []) {
+    if (joinedPeriodIssue(before, p)) continue;
     if ([p.fromBarId, p.toBarId].every((id) => moving.has(id)))
       Object.assign(
         doc.joinedPeriods.find((v) => v.id === p.id),

@@ -1,6 +1,7 @@
 """Version 1 timeline format. Historical years are signed integers, never zero."""
 import math
 import re
+from .provenance import source_url
 
 MAX_YEAR = 10**12
 
@@ -48,6 +49,23 @@ def validate(doc):
             for key in content:
                 text(content, key, fields[key], False)
 
+    def research(obj):
+        if 'research' in obj:
+            research = obj['research']
+            if not isinstance(research, dict):
+                raise ValueError('Invalid research metadata.')
+            text(research, 'model', 100)
+            text(research, 'checkedAt', 100)
+            text(research, 'note', 4000, False)
+            sources = research.get('sources')
+            if not isinstance(sources, list) or not 1 <= len(sources) <= 20:
+                raise ValueError('Research needs 1–20 source links.')
+            for source in sources:
+                if not isinstance(source, dict) or not source_url(source.get('url')):
+                    raise ValueError('Invalid research source URL.')
+                text(source, 'title', 500)
+
+
     text(doc, 'title', 160)
     text(doc, 'description', 4000, False)
     translations(doc, {'title': 160, 'description': 4000})
@@ -88,22 +106,7 @@ def validate(doc):
     for b in bars:
         text(b, 'label', 250, False)
         translations(b, {'label': 250})
-        if 'research' in b:
-            from .ai import source_url
-            research = b['research']
-            if not isinstance(research, dict):
-                raise ValueError('Invalid research metadata.')
-            text(research, 'model', 100)
-            text(research, 'checkedAt', 100)
-            text(research, 'note', 4000, False)
-            sources = research.get('sources')
-            if not isinstance(sources, list) or not 1 <= len(sources) <= 20:
-                raise ValueError('Research needs 1–20 source links.')
-            for source in sources:
-                if not isinstance(source, dict) or not source_url(source.get('url')):
-                    raise ValueError('Invalid research source URL.')
-                text(source, 'title', 500)
-
+        research(b)
         a, z = year(b, 'start'), year(b, 'end')
         if ordinal(z) <= ordinal(a):
             raise ValueError('A bar must end after it starts.')
@@ -170,6 +173,7 @@ def validate(doc):
             cur = text(bar_ids[cur], 'mergeInto', 80, False)
     occupied = {}
     for joined in joins:
+        research(joined)
         pair = [bar_ids.get(text(joined, key, 80)) for key in ('fromBarId', 'toBarId')]
         if any(b is None for b in pair) or pair[0] is pair[1]:
             raise ValueError('A joined period needs two different existing time bars.')
@@ -227,6 +231,7 @@ def validate(doc):
         if o.get('type') == 'image' and not re.fullmatch(r'[a-f0-9]{32}', str(o.get('mediaId', ''))):
             raise ValueError('Choose an image from the media library.')
     for e in events:
+        research(e)
         year(e, 'year')
         text(e, 'label', 250, False)
         translations(e, {'label': 250})

@@ -46,6 +46,9 @@ def init_db():
             id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,
             response_id TEXT NOT NULL, created REAL NOT NULL,
             result TEXT, error TEXT)''',
+        '''CREATE TABLE IF NOT EXISTS ai_job_context (
+            job_id TEXT PRIMARY KEY REFERENCES ai_jobs(id) ON DELETE CASCADE,
+            payload TEXT NOT NULL)''',
         '''CREATE TABLE IF NOT EXISTS login_attempts (
             address TEXT PRIMARY KEY, attempts INTEGER NOT NULL, started REAL NOT NULL)''',
     ]:

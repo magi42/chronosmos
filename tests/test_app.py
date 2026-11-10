@@ -254,3 +254,15 @@ def test_demo_is_opt_in_and_idempotent(app, client):
     assert runner.invoke(args=['init-db', '--demo']).exit_code == 0
     assert runner.invoke(args=['init-db', '--demo']).exit_code == 0
     assert len(client.get('/api/timelines').json) == 1
+
+
+def test_language_parameter_survives_manage_login(client):
+    from urllib.parse import urlsplit, parse_qs
+    response=client.get('/manage?timeline=example&lang=fi')
+    assert parse_qs(urlsplit(response.location).query)=={'timeline':['example'],'lang':['fi']}
+    login_url=response.location
+    client.get(login_url)
+    with client.session_transaction() as session:token=session['csrf']
+    response=client.post(login_url,data=dict(username='editor',password='a long test password',csrf=token))
+    assert urlsplit(response.location).path=='/manage'
+    assert parse_qs(urlsplit(response.location).query)=={'timeline':['example'],'lang':['fi']}

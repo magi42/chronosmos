@@ -1639,3 +1639,24 @@ dialog .dialog-close {
   margin-top: 20px;
   font-size: 14px;
 }
+
+.field-conflict {
+  color: #883724;
+  background: #fff1e8;
+  border-left: 3px solid #b65b3c;
+  padding: 9px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.has-conflict {
+  border-color: #b65b3c;
+}
+.screen-scale-note {
+  padding: 6px 18px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+#ai-dialog input:disabled + strong {
+  opacity: 0.45;
+}

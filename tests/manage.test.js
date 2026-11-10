@@ -93,7 +93,7 @@ test("manage opens a chooser without auto-loading, creates and saves geological 
   assert.equal(document.querySelectorAll(".managed-timeline").length, 2);
   assert.equal(
     $(".managed-timeline").getAttribute("href"),
-    "/manage?timeline=first",
+    "/manage?timeline=first&lang=en",
   );
   assert.equal(
     document.querySelectorAll(".managed-timeline")[1].querySelector("strong")
@@ -101,7 +101,7 @@ test("manage opens a chooser without auto-loading, creates and saves geological 
     "Private <draft>",
   );
   await $("#create-timeline").onclick();
-  assert.equal(location.search, "?timeline=new");
+  assert.equal(location.search, "?timeline=new&lang=en");
   assert.equal($("#timeline-chooser").hidden, true);
   assert.equal($("#editor-workspace").hidden, false);
   const set = (key, value) => {
@@ -120,7 +120,7 @@ test("manage opens a chooser without auto-loading, creates and saves geological 
   assert.equal(stored.start, -65000000);
   assert.equal(stored.timeUnit, "millions");
   assert.equal(stored.mmPerYear, 0.00001);
-  assert.equal(location.search, "?timeline=created");
+  assert.equal(location.search, "?timeline=created&lang=en");
   assert.ok(parseFloat($("#canvas svg").style.width) < 10000);
   assert.equal(parseFloat($("#canvas svg").style.height), 820);
   $("#field-labelInterval").focus();
@@ -165,7 +165,7 @@ test("manage opens a chooser without auto-loading, creates and saves geological 
   await Promise.resolve();
   $("#confirm-dialog").close("yes");
   await deletion;
-  assert.equal(location.search, "");
+  assert.equal(location.search, "?lang=en");
   assert.equal($("#timeline-chooser").hidden, false);
   assert.equal($("#editor-workspace").hidden, true);
   assert.equal(document.querySelectorAll(".managed-timeline").length, 0);

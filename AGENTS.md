@@ -15,6 +15,9 @@
   100% uses stored mmPerYear; text/media/vertical sizes remain fixed. JSON/package
   exports preserve the source composition without baking in the export stretch.
   PNG DPI choices are 96/150/300/600/1200; retain image-size allocation limits.
+- Screen zoom is relative to a responsive fit: 100% fills available width and Fit
+  resets to 100%, including short date ranges. Keep print mmPerYear independent.
+  URL lang=en/fi overrides saved/browser language and survives navigation/login.
 - Timeline zoom changes only the horizontal time scale. Keep vertical positions,
   bar heights, text sizes and illustration proportions fixed, including while dragging.
 - Bar dragging changes only vertical position unless Shift is held. Horizontal
@@ -28,13 +31,19 @@
   short outward ticks at both axes. Bound tick counts and never introduce year 0.
 - Optional document `joinedPeriods` links two bars over start/end years with
   transitionYears splines inside the period. Both bars must exist throughout;
-  joins cannot overlap on a bar or overlap its outgoing end merge. Each bar
+  joins cannot overlap on a bar or overlap its outgoing end merge when saved.
+  Retain conflicting form edits with inline warnings and omit only those periods
+  from draft rendering; allow partner and date edits in either order. Each bar
   contributes half its instantaneous height along a shared seam. All anchors,
   endpoints and exports use this geometry. Dragging inside the period moves
   both bars and their attachments; Shift also shifts their joined dates.
 - AI research is editor-only and additive, using server-side `gpt-6.1-sol`
   Responses API with mandatory web search. Validate proposed historical years
-  and require per-bar links present in the actual search results. Review before
+  and require links present in actual search results for each bar, join and event.
+  Support new joins/events referencing existing bars and propose missing Finnish
+  translations by default without overwriting authored fields. Translation-only
+  mode uses no web tools or date additions. Keep a private per-job source snapshot
+  in ai_job_context, deleted with its job, and exclude media bytes from prompts. Review before
   applying to unsaved drafts; no automatic save/publish. Preserve bar research
   metadata in packages and show sources in editor/public view. Never expose
   OPENAI_API_KEY; provision only from ignored local config over SSH stdin.

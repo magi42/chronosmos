@@ -156,11 +156,12 @@ def create_app(config=None):
         prompt = body.get('prompt')
         if not isinstance(prompt, str) or not 10 <= len(prompt.strip()) <= 6000:
             abort(400, 'Describe the requested time bars in 10–6000 characters.')
-        context = None
-        if body.get('document') is not None:
-            document = validate(body['document'])
-            context = {k: document[k] for k in ('title', 'start', 'end')}
-            context['bars'] = [{k: b[k] for k in ('label', 'start', 'end')} for b in document['bars']]
+        mode = body.get('mode', 'compose')
+        if mode not in ('compose', 'translate'):
+            abort(400, 'Invalid AI editing mode.')
+        context = validate(body['document']) if body.get('document') is not None else None
+        if mode == 'translate' and context is None:
+            abort(400, 'Open a timeline before translating it.')
         username, stamp = editor()['username'], time.time()
         # Reserve a single job per account before calling OpenAI, including concurrent requests.
         db.execute('DELETE FROM ai_jobs WHERE username=? AND (created<? OR result IS NOT NULL OR error IS NOT NULL)', (username, stamp-1800))
@@ -170,12 +171,13 @@ def create_app(config=None):
         job = secrets.token_hex(24)
         try:
             db.execute('INSERT INTO ai_jobs (id,username,response_id,created) VALUES (?,?,?,?)', (job, username, '', stamp))
+            db.execute('INSERT INTO ai_job_context (job_id,payload) VALUES (?,?)', (job, json.dumps(dict(document=context, mode=mode))))
             db.connect().commit()
         except (sqlite3.IntegrityError, psycopg.IntegrityError):
             db.connect().rollback()
             abort(409, 'Research is already running for this account.')
         try:
-            result = ai.start(app.config['OPENAI_API_KEY'], prompt.strip(), context)
+            result = ai.start(app.config['OPENAI_API_KEY'], prompt.strip(), context, mode)
             db.execute('UPDATE ai_jobs SET response_id=? WHERE id=?', (result['id'], job))
             db.connect().commit()
         except ai.AIError as e:
@@ -203,7 +205,9 @@ def create_app(config=None):
             result = ai.api_request(app.config['OPENAI_API_KEY'], '/' + row['response_id'] + '?include%5B%5D=web_search_call.action.sources')
             if result.get('status') in ('queued', 'in_progress'):
                 return jsonify(status='researching')
-            value = ai.proposal(result)
+            context = db.execute('SELECT payload FROM ai_job_context WHERE job_id=?', (job,)).fetchone()
+            payload = json.loads(context['payload']) if context else {}
+            value = ai.proposal(result, payload.get('document'), payload.get('mode', 'compose'))
             db.execute('UPDATE ai_jobs SET result=? WHERE id=?', (json.dumps(value), job))
             db.connect().commit()
             return jsonify(status='completed', proposal=value)
@@ -221,10 +225,13 @@ def create_app(config=None):
     def index():
         return render_template('index.html')
 
+    def editor_query():
+        return {k: request.args[k] for k in ('timeline', 'lang') if request.args.get(k) and (k != 'lang' or request.args[k] in ('en', 'fi'))}
+
     @app.get('/manage')
     def manage():
         if not editor():
-            return redirect(url_for('login', **({'timeline': request.args['timeline']} if request.args.get('timeline') else {})))
+            return redirect(url_for('login', **editor_query()))
         return render_template('editor.html', csrf=csrf())
 
     @app.route('/manage/login', methods=['GET', 'POST'])
@@ -246,7 +253,7 @@ def create_app(config=None):
                 session.update(username=user['username'], user_version=user['version'])
                 session.permanent = True
                 csrf()
-                return redirect(url_for('manage', **({'timeline': request.args['timeline']} if request.args.get('timeline') else {})))
+                return redirect(url_for('manage', **editor_query()))
             count = attempt['attempts'] + 1 if attempt and stamp - attempt['started'] < 900 else 1
             started = attempt['started'] if count > 1 else stamp
             db.execute('INSERT INTO login_attempts (address,attempts,started) VALUES (?,?,?) ON CONFLICT(address) DO UPDATE SET attempts=excluded.attempts,started=excluded.started', (address, count, started))
