@@ -1,5 +1,18 @@
 export const translations = {
   en: {
+    dottedLine: "Dotted line",
+    showCaption: "Show bar caption",
+    hiddenCaptionHint:
+      "The caption still identifies this bar in lists and selectors when hidden.",
+    addBrace: "+ Curly bracket",
+    brace: "Curly bracket",
+    braceNew: "Group",
+    topCaption: "Top caption",
+    middleCaption: "Middle caption (right)",
+    bottomCaption: "Bottom caption",
+    braceWidth: "Bracket width",
+    strokeWidth: "Line width",
+
     eventCaptionPosition: "Event caption position",
     captionY: "Caption vertical position",
     captionPosition: "Bar caption position",
@@ -243,6 +256,19 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    dottedLine: "Pisteviiva",
+    showCaption: "Näytä palkin teksti",
+    hiddenCaptionHint:
+      "Teksti toimii palkin nimenä luetteloissa ja valinnoissa myös piilotettuna.",
+    addBrace: "+ Aaltosulje",
+    brace: "Aaltosulje",
+    braceNew: "Ryhmä",
+    topCaption: "Yläteksti",
+    middleCaption: "Keskiteksti (oikealla)",
+    bottomCaption: "Alateksti",
+    braceWidth: "Aaltosulkeen leveys",
+    strokeWidth: "Viivan leveys",
+
     eventCaptionPosition: "Tapahtumatekstin sijainti",
     captionY: "Tekstin pystysijainti",
     captionPosition: "Palkin tekstin sijainti",

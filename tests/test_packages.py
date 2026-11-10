@@ -53,7 +53,9 @@ def test_package_roundtrip_preserves_all_settings_and_media_without_overwriting(
     doc['overlays'].append(dict(doc['overlays'][-1],id='same-picture'))
     doc.update(labelInterval=1000,minorTickInterval=100,majorGrid=True,translations={'fi':{'title':'Aikajana'}})
     doc['events'][0].update(labelPosition='free',labelY=250,labelOffsetX=-20)
-    doc['bars'][0].update(captionPosition='right',captionFontSize=22,captionColor='#223344')
+    doc['bars'][0].update(captionPosition='right',captionFontSize=22,captionColor='#223344',showCaption=False)
+    doc['events'][0]['dotted']=True
+    doc['overlays'].append(dict(id='brace1',type='brace',year=-1,y=100,width=240,height=300,text='Group',topText='Top',bottomText='Bottom',color='#223344',fill='#ffffff',fontSize=14,braceWidth=24,strokeWidth=2,translations={'fi':{'text':'Ryhmä','topText':'Alku','bottomText':'Loppu'}}))
     created = client.post('/api/timelines',json=doc,headers=auth).json
     original = created['id']
     response = client.post('/api/packages/export',json=doc,headers=auth)
@@ -72,7 +74,7 @@ def test_package_roundtrip_preserves_all_settings_and_media_without_overwriting(
         assert imported['id'] != original and imported['revision'] == 1 and imported['published'] is False
         expected = copy.deepcopy(doc)
         expected.update(title=doc['title']+f' ({suffix})',slug=doc['slug']+'-'+suffix)
-        mapped = imported['document']['overlays'][-1]['mediaId']
+        mapped = next(o['mediaId'] for o in imported['document']['overlays'] if o['type']=='image')
         assert mapped != uploaded['id']
         for overlay in expected['overlays']:
             if overlay['type'] == 'image':

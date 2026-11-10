@@ -451,7 +451,7 @@ function renderLayers() {
   );
   const items = doc?.[tab] || [];
   const row = (item, kind, i) =>
-    `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-kind="${kind}" data-id="${item.id}"><span class="layer-swatch ${kind === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${kind === "branches" ? "↳" : kind === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(kind === "branches" ? branchLabel(item) : textFor(item, "label", language) || textFor(item, "text", language).split("\n")[0] || t(item.type) || t("event"))}</strong><small>${kind === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : kind === "branches" ? esc(yearLabel(item.fromYear, language) + " → " + yearLabel(item.toYear, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`;
+    `<button class="layer-row ${selected?.id === item.id ? "selected" : ""}" data-kind="${kind}" data-id="${item.id}"><span class="layer-swatch ${kind === "overlays" ? "overlay-swatch" : ""}" style="background:${item.background || item.color || "#d5d1c5"}">${kind === "branches" ? "↳" : kind === "overlays" ? (item.type === "text" ? "T" : item.type === "box" ? "□" : item.type === "brace" ? "}" : "▧") : ""}</span><span class="layer-detail"><strong>${esc(kind === "branches" ? branchLabel(item) : textFor(item, "label", language) || (textFor(item, "text", language) || textFor(item, "topText", language) || textFor(item, "bottomText", language)).split("\n")[0] || t(item.type) || t("event"))}</strong><small>${kind === "bars" ? esc(yearLabel(item.start, language) + " — " + yearLabel(item.end, language)) : kind === "branches" ? esc(yearLabel(item.fromYear, language) + " → " + yearLabel(item.toYear, language)) : esc(yearLabel(item.year, language))}</small></span><span class="layer-index">${String(i + 1).padStart(2, "0")}</span></button>`;
   list.innerHTML = !items.length
     ? `<p class="subtle empty-layers">${esc(t("noLayers"))}</p>`
     : tab === "bars"
@@ -501,7 +501,8 @@ function renderLayers() {
         ? button("addEvent", 'data-add="event" class="add-layer"')
         : button("addText", 'data-add="text"') +
           button("addBox", 'data-add="box"') +
-          button("addImage", 'data-add="image"');
+          button("addImage", 'data-add="image"') +
+          button("addBrace", 'data-add="brace"');
   $$("[data-add]").forEach(
     (b) =>
       (b.onclick = action(() =>
@@ -511,7 +512,14 @@ function renderLayers() {
 }
 function field(key, label, type = "text", value = "", options = {}) {
   const id = "field-" + key;
-  const translatable = ["title", "description", "label", "text"].includes(key);
+  const translatable = [
+    "title",
+    "description",
+    "label",
+    "text",
+    "topText",
+    "bottomText",
+  ].includes(key);
   const languageKey = `${textEditorKey}:${selectedItem()?.id ?? "document"}:${key}`;
   const locale = translatable
     ? (textFieldLanguages.get(languageKey) ?? "en")
@@ -524,6 +532,8 @@ function field(key, label, type = "text", value = "", options = {}) {
   let control;
   if (type === "select")
     control = `<select id="${id}" data-field="${key}">${options.choices.map(([v, l]) => `<option value="${esc(v)}" ${String(value) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  else if (type === "checkbox")
+    control = `<input id="${id}" data-field="${key}" type="checkbox" ${value ? "checked" : ""}>`;
   else if (type === "textarea")
     control = `<textarea id="${id}" data-field="${key}" ${textAttributes} rows="${options.rows || 3}" maxlength="${options.maxLength || 4000}">${esc(value)}</textarea>`;
   else
@@ -532,7 +542,7 @@ function field(key, label, type = "text", value = "", options = {}) {
     const selector = `<select id="language-${key}" class="text-language-select" data-text-language="${esc(languageKey)}" data-text-field="${key}" aria-label="${esc(t(label) + " · " + t("textLanguage"))}"><option value="en" ${locale === "en" ? "selected" : ""}>${esc(t("englishBase"))}</option><option value="fi" ${locale === "fi" ? "selected" : ""}>${esc(t("finnish"))}</option></select>`;
     return `<div class="field content-field"><label for="${id}">${esc(t(label))}</label>${selector}${control}${locale === "fi" ? `<small>${esc(t("englishFallback"))}</small>` : ""}</div>`;
   }
-  return `<label class="field ${type === "color" ? "color-field" : ""}" for="${id}"><span>${esc(t(label))}</span>${control}${options.hint ? `<small>${esc(options.hint)}</small>` : ""}</label>`;
+  return `<label class="field ${type === "color" ? "color-field" : type === "checkbox" ? "checkbox-field" : ""}" for="${id}"><span>${esc(t(label))}</span>${control}${options.hint ? `<small>${esc(options.hint)}</small>` : ""}</label>`;
 }
 function heightPeriodFields(bar) {
   return `<section class="height-periods"><h3>${esc(t("heightChanges"))}</h3>${(bar.heightPeriods ?? []).map((p) => `<div class="height-period" data-height-period="${p.id}"><div class="field-pair"><label class="field"><span>${esc(t("start"))}</span><input type="number" data-period-field="start" value="${p.start}" min="${bar.start}" max="${bar.end}" step="1"></label><label class="field"><span>${esc(t("end"))}</span><input type="number" data-period-field="end" value="${p.end}" min="${bar.start}" max="${bar.end}" step="1"></label></div><label class="field"><span>${esc(t("targetHeight"))}</span><input type="number" data-period-field="height" value="${p.height}" min="4" max="160" step="1"></label><button class="danger-text" data-remove-period="${p.id}">${esc(t("removePeriod"))}</button></div>`).join("")}<button id="add-height-period">${esc(t("addHeightPeriod"))}</button><p class="field-note">${esc(t("heightPeriodHint"))}</p></section>`;
@@ -683,10 +693,13 @@ function renderInspector() {
       `<div class="inspector-divider"></div>${published ? `<a class="public-link" href="/${esc(publishedSlug)}" target="_blank" rel="noopener">/${esc(publishedSlug)} ↗</a>${button("unpublish", 'id="unpublish" class="danger-text"')}` : ""}${button("deleteTimeline", 'id="delete-timeline" class="danger-text"')}`;
   } else {
     const kind = selected.kind;
-    html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : kind === "branches" ? "branch" : o.type))}</div><h2>${esc(kind === "branches" ? branchLabel(o) : textFor(o, "label", language) || textFor(o, "text", language).split("\n")[0] || t(o.type))}</h2>`;
+    html = `<div class="eyebrow">${esc(t(kind === "bars" ? "timeBar" : kind === "events" ? "event" : kind === "branches" ? "branch" : o.type))}</div><h2>${esc(kind === "branches" ? branchLabel(o) : textFor(o, "label", language) || (textFor(o, "text", language) || textFor(o, "topText", language) || textFor(o, "bottomText", language)).split("\n")[0] || t(o.type))}</h2>`;
     if (kind === "bars") {
       html +=
         field("label", "label", "text", o.label) +
+        field("showCaption", "showCaption", "checkbox", o.showCaption ?? true, {
+          hint: t("hiddenCaptionHint"),
+        }) +
         field(
           "captionPosition",
           "captionPosition",
@@ -789,7 +802,13 @@ function renderInspector() {
             )
           : "");
     } else if (kind === "overlays") {
-      if (o.type !== "image") html += field("text", "text", "textarea", o.text);
+      if (o.type === "brace")
+        html +=
+          field("topText", "topCaption", "textarea", o.topText ?? "") +
+          field("text", "middleCaption", "textarea", o.text) +
+          field("bottomText", "bottomCaption", "textarea", o.bottomText ?? "");
+      else if (o.type !== "image")
+        html += field("text", "text", "textarea", o.text);
       else
         html += `<img class="inspector-image" src="/media/${o.mediaId}.png" alt="${esc(t("selectedMedia"))}">${button("changeImage", 'id="change-image"')}`;
       const anchor = doc.bars.find((b) => b.id === o.anchorBarId);
@@ -814,11 +833,29 @@ function renderInspector() {
         (anchor
           ? number("offsetY", "offsetY", o.offsetY ?? 0, -4000, 4000, "any")
           : number("y", "y", o.y, 0, doc.height)) +
-        `<div class="field-pair">${number("width", "width", o.width, 10, 2000)}${number("height", "height", o.height, 10, 2000)}</div>`;
+        `<div class="field-pair">${number("width", "width", o.width, o.type === "brace" ? (o.braceWidth ?? 24) + 24 : 10, 2000)}${number("height", "height", o.height, 10, 2000)}</div>`;
       if (o.type !== "image")
         html +=
           number("fontSize", "fontSize", o.fontSize, 6, 120) +
           color("color", "color", o.color);
+      if (o.type === "brace")
+        html +=
+          number(
+            "braceWidth",
+            "braceWidth",
+            o.braceWidth ?? 24,
+            8,
+            Math.min(160, o.width - 24),
+            "any",
+          ) +
+          number(
+            "strokeWidth",
+            "strokeWidth",
+            o.strokeWidth ?? 1.5,
+            0.25,
+            20,
+            "any",
+          );
       if (o.type === "box") html += color("fill", "fill", o.fill);
     } else if (kind === "branches") {
       const from = doc.bars.find((b) => b.id === o.fromBarId),
@@ -919,6 +956,7 @@ function renderInspector() {
         ) +
         endpointFields("start") +
         endpointFields("end") +
+        field("dotted", "dottedLine", "checkbox", o.dotted ?? false) +
         number("width", "width", o.width, 0.25, 20, 0.25) +
         color("color", "color", o.color) +
         field("layer", "layer", "select", o.layer, {
@@ -961,7 +999,11 @@ function renderInspector() {
     if (o)
       el.querySelector("h2").textContent =
         textFor(o, "label", language) ||
-        textFor(o, "text", language).split("\n")[0] ||
+        (
+          textFor(o, "text", language) ||
+          textFor(o, "topText", language) ||
+          textFor(o, "bottomText", language)
+        ).split("\n")[0] ||
         t(o.type);
   };
   el.querySelectorAll("[data-text-language]").forEach(
@@ -986,7 +1028,12 @@ function renderInspector() {
         if (!input.reportValidity()) return;
         const target = o || doc,
           key = input.dataset.field;
-        let value = input.type === "number" ? Number(input.value) : input.value;
+        let value =
+          input.type === "checkbox"
+            ? input.checked
+            : input.type === "number"
+              ? Number(input.value)
+              : input.value;
         if (input.dataset.contentLocale) {
           commitContent(input);
           return;
@@ -1048,6 +1095,10 @@ function renderInspector() {
               selected?.kind === "bars" ? barCaption(doc, target).color : "",
             labelPosition: "top",
             labelOffsetX: 7,
+            showCaption: true,
+            dotted: false,
+            braceWidth: 24,
+            strokeWidth: 1.5,
           };
           if (value === (target[key] ?? defaults[key])) return;
         }
@@ -1308,7 +1359,20 @@ function addElement(type, media = null) {
         y: Math.min(doc.height - 80, 200),
         width: 200,
         height: 80,
-        text: type === "image" ? "" : t("noteNew", "en"),
+        text:
+          type === "image"
+            ? ""
+            : t(type === "brace" ? "braceNew" : "noteNew", "en"),
+        ...(type === "brace"
+          ? {
+              width: 240,
+              height: 240,
+              braceWidth: 24,
+              strokeWidth: 1.5,
+              topText: "",
+              bottomText: "",
+            }
+          : {}),
         color: "#4a4e43",
         fill: "#eee9dc",
         fontSize: 14,

@@ -118,8 +118,53 @@ test("caption controls, dragging and package export/import preserve the current 
     $('#canvas [data-id="egypt"] text').getAttribute("font-size"),
     "26",
   );
+  assert.equal($("#field-showCaption").type, "checkbox");
+  assert.equal($("#field-showCaption").checked, true);
+  $("#field-showCaption").checked = false;
+  $("#field-showCaption").onchange();
+  assert.equal($('#canvas [data-id="egypt"] text'), null);
+  assert.equal(
+    $('#layer-list [data-id="egypt"] strong').textContent,
+    sample.bars[0].label,
+  );
+  await click('[data-tab="overlays"]');
+  await click('[data-add="brace"]');
+  set("topText", "Beginning");
+  set("text", "Middle");
+  set("bottomText", "End");
+  const translate = (key, value) => {
+    const control = $("#language-" + key);
+    control.value = "fi";
+    control.onchange();
+    set(key, value);
+  };
+  translate("topText", "Alku");
+  assert.equal($("#language-text").value, "en");
+  assert.equal($("#language-bottomText").value, "en");
+  translate("text", "Ryhmä");
+  translate("bottomText", "Loppu");
+  assert.equal(
+    $('#field-anchorBarId option[value="egypt"]').textContent,
+    sample.bars[0].label,
+  );
+  set("anchorBarId", "egypt");
+  set("year", -1);
+  set("height", 400);
+  const bracket = $('#canvas [data-kind="overlays"] .curly-bracket');
+  assert.ok(bracket.getAttribute("d").endsWith("0,400"));
+  assert.equal(
+    $('#canvas [data-brace-caption="top"]').textContent,
+    "Beginning",
+  );
   await click('[data-tab="events"]');
   await click('#layer-list [data-id="event1"]');
+  assert.equal($("#field-dotted").type, "checkbox");
+  $("#field-dotted").checked = true;
+  $("#field-dotted").onchange();
+  assert.equal(
+    $('#canvas [data-id="event1"] line').getAttribute("stroke-dasharray"),
+    `0 ${Number($("#field-width").value) * 3}`,
+  );
   set("labelPosition", "center");
   const oldYear = Number($("#field-year").value);
   const oldY = Number($('#canvas [data-id="event1"] text').getAttribute("y"));
@@ -153,6 +198,15 @@ test("caption controls, dragging and package export/import preserve the current 
   assert.equal(packaged.bars[0].captionPosition, "right");
   assert.equal(packaged.bars[0].captionFontSize, 26);
   assert.equal(packaged.events[0].labelPosition, "free");
+  assert.equal(packaged.events[0].dotted, true);
+  assert.equal(packaged.bars[0].showCaption, false);
+  const brace = packaged.overlays.find((o) => o.type === "brace");
+  assert.equal(brace.height, 400);
+  assert.deepEqual(brace.translations.fi, {
+    topText: "Alku",
+    text: "Ryhmä",
+    bottomText: "Loppu",
+  });
   assert.deepEqual(stored, original); // Export includes edits without saving the original.
   $("#export-dialog").close();
   const file = new dom.window.File(

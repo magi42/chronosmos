@@ -574,3 +574,117 @@ test("outside bar captions are unclipped, sized automatically or explicitly, and
   bar.captionYear = 2200;
   assert.equal(barCaption(doc, bar).year, 2200);
 });
+
+test("dotted event lines use round dots scaled with line width and retain a continuous selection target", () => {
+  for (const width of [0.5, 2, 5]) {
+    const doc = structuredClone(sample);
+    doc.events[0].dotted = true;
+    doc.events[0].width = width;
+    for (const horizontalScale of [0.5, 4]) {
+      const svg = parse(
+        renderTimeline(doc, { interactive: true, horizontalScale }),
+      );
+      const [line, hit] = svg.querySelectorAll('[data-id="event1"] line');
+      assert.equal(line.getAttribute("stroke-dasharray"), `0 ${width * 3}`);
+      assert.equal(line.getAttribute("stroke-linecap"), "round");
+      assert.equal(hit.getAttribute("stroke-dasharray"), null);
+      assert.equal(hit.getAttribute("stroke"), "transparent");
+    }
+    assert.equal(
+      parse(renderTimeline(sample, { interactive: true }))
+        .querySelector('[data-id="event1"] line')
+        .getAttribute("stroke-dasharray"),
+      null,
+    );
+  }
+});
+
+test("hidden bar captions keep their names and stop reserving caption margins", () => {
+  const doc = structuredClone(sample),
+    bar = doc.bars[0];
+  bar.captionPosition = "right";
+  bar.end = doc.end;
+  bar.label =
+    "A long descriptive name for selecting a bar without displaying its caption";
+  const width = dimensions(doc).width;
+  bar.showCaption = false;
+  const svg = parse(renderTimeline(doc, { interactive: true }));
+  const group = svg.querySelector('[data-id="egypt"]');
+  assert.ok(group.querySelector("path"));
+  assert.equal(group.querySelector("text"), null);
+  assert.equal(group.getAttribute("aria-label"), bar.label);
+  assert.ok(dimensions(doc).width < width);
+  assert.equal(
+    bar.label,
+    "A long descriptive name for selecting a bar without displaying its caption",
+  );
+});
+
+test("curly brackets stretch vertically with three translated captions and preserve geometry under horizontal zoom", () => {
+  const doc = structuredClone(sample);
+  const brace = {
+    ...doc.overlays[0],
+    id: "brace1",
+    type: "brace",
+    year: doc.end,
+    y: 100,
+    width: 240,
+    height: 400,
+    braceWidth: 24,
+    strokeWidth: 2,
+    fontSize: 14,
+    text: "Group",
+    topText: "Top <script>",
+    bottomText: "Bottom",
+    translations: { fi: { topText: "Alku", text: "", bottomText: "Loppu" } },
+  };
+  doc.overlays = [brace];
+  for (const height of [80, 400, 1000]) {
+    brace.height = height;
+    let path;
+    for (const horizontalScale of [0.25, 1, 4]) {
+      const svg = parse(
+        renderTimeline(doc, {
+          interactive: true,
+          horizontalScale,
+          language: "fi",
+        }),
+      );
+      const group = svg.querySelector('[data-id="brace1"]');
+      const current = group.querySelector(".curly-bracket").getAttribute("d");
+      if (path) assert.equal(current, path);
+      else path = current;
+      assert.ok(current.endsWith(`0,${height}`));
+      assert.equal(
+        group.querySelector('[data-brace-caption="top"]').textContent,
+        "Alku",
+      );
+      assert.equal(
+        group.querySelector('[data-brace-caption="center"]').textContent,
+        "Group",
+      );
+      assert.equal(
+        group.querySelector('[data-brace-caption="bottom"]').textContent,
+        "Loppu",
+      );
+      assert.equal(
+        Number(
+          group
+            .querySelector('[data-brace-caption="center"]')
+            .getAttribute("y"),
+        ),
+        100 + height / 2,
+      );
+      assert.ok(
+        dimensions(doc, horizontalScale, "fi").width >=
+          xFor(doc, doc.end, horizontalScale, "fi") + brace.width + 16,
+      );
+    }
+  }
+  const en = parse(renderTimeline(doc));
+  assert.equal(en.querySelector("script"), null);
+  assert.equal(
+    en.querySelector('[data-brace-caption="top"]').textContent,
+    "Top <script>",
+  );
+});

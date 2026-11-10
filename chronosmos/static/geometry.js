@@ -228,3 +228,11 @@ export function branchRibbon(
     bottom: Math.max(...samples.flatMap((s) => [s.upper.y, s.lower.y])),
   };
 }
+
+// Fixed-width curls and stretchable straight arms avoid distorting a font glyph.
+export function bracePath(width, height) {
+  const arm = width / 2,
+    curl = Math.min(18, height / 4),
+    mid = height / 2;
+  return `M0,0 C${arm},0 ${arm},${curl / 2} ${arm},${curl} L${arm},${mid - curl} C${arm},${mid - curl / 2} ${arm},${mid} ${width},${mid} C${arm},${mid} ${arm},${mid + curl / 2} ${arm},${mid + curl} L${arm},${height - curl} C${arm},${height - curl / 2} ${arm},${height} 0,${height}`;
+}

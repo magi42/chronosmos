@@ -26,6 +26,14 @@
   connect two different bars at independent years. Share their geometry with anchors and exports.
 - Viewer and Preview support drag-to-pan and click-to-enlarge overlays. Suppress
   enlargement after a pan gesture; a subsequent click anywhere closes the detail.
+- Bar `showCaption` defaults to true. False hides only the rendered caption
+  and its layout margin; retain label/translations in all lists, selectors and data.
+- Event `dotted` defaults to false. Draw round dots proportional to line width,
+  with a continuous transparent editor hit target; use shared export rendering.
+- Overlay type `brace` is a vertically stretched SVG curly bracket. Its middle
+  caption is text, endpoints are topText/bottomText, each independently translated.
+  Keep braceWidth/strokeWidth and font size fixed under horizontal zoom, support
+  existing anchors, and preserve all three captions in viewer details and packages.
 - Bar `captionPosition` supports inside/right/left/above/below/free. Outside
   captions are unclipped and horizontal margins must include their translated
   text at the chosen font size; `captionFontSize` defaults to auto. Caption drag

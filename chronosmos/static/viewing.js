@@ -25,6 +25,37 @@ export function wireViewing(
       img.src = "/media/" + overlay.mediaId + ".png";
       img.alt = textFor(overlay, "text", getLanguage()) || translate("image");
       detail.append(img);
+    } else if (overlay.type === "brace") {
+      const source = [...viewport.querySelectorAll("[data-view-id]")].find(
+        (node) => node.dataset.viewId === id,
+      );
+      const bounds = source?.querySelector("rect");
+      if (!source || !bounds) return;
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      const x = Number(bounds.getAttribute("x")),
+        y = Number(bounds.getAttribute("y"));
+      svg.setAttribute(
+        "viewBox",
+        `${x - 4} ${y - 4} ${overlay.width + 8} ${overlay.height + 8}`,
+      );
+      svg.setAttribute("width", (overlay.width + 8) * 2);
+      svg.setAttribute("height", (overlay.height + 8) * 2);
+      svg.setAttribute("font-family", "Arial, sans-serif");
+      svg.classList.add("detail-brace");
+      svg.setAttribute("role", "img");
+      svg.setAttribute(
+        "aria-label",
+        ["topText", "text", "bottomText"]
+          .map((field) => textFor(overlay, field, getLanguage()))
+          .filter(Boolean)
+          .join(" · ") || translate("brace"),
+      );
+      svg.style.background = getDocument().background;
+      const clone = source.cloneNode(true);
+      for (const attribute of ["data-view-id", "tabindex", "role", "style"])
+        clone.removeAttribute(attribute);
+      svg.append(clone);
+      detail.append(svg);
     } else {
       const text = document.createElement("div");
       text.className = "detail-text";

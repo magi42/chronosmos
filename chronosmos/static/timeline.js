@@ -1,5 +1,10 @@
 import { textFor } from "./content.js";
-import { barSectionAt, ribbonPath, branchRibbon } from "./geometry.js";
+import {
+  barSectionAt,
+  ribbonPath,
+  branchRibbon,
+  bracePath,
+} from "./geometry.js";
 import { wrappedLines, textWidth } from "./text-layout.js";
 export { barSectionAt, wrappedLines };
 export const UNIT = 0.45,
@@ -63,6 +68,7 @@ export function dimensions(d, horizontalScale = 1, language = "en") {
   let left = PAD,
     right = span * unit + PAD * 2;
   for (const bar of d.bars) {
+    if (bar.showCaption === false) continue;
     const caption = barCaption(d, bar);
     if (caption.clipped) continue;
     const xx =
@@ -84,6 +90,11 @@ export function dimensions(d, horizontalScale = 1, language = "en") {
       left = Math.max(left, PAD + 16 - ribbon.minX);
       right = Math.max(right, ribbon.maxX + 16);
     }
+  }
+  for (const overlay of d.overlays.filter((o) => o.type === "brace")) {
+    const xx = PAD + (ordinal(overlay.year) - ordinal(d.start)) * unit;
+    left = Math.max(left, PAD + 16 - xx);
+    right = Math.max(right, xx + overlay.width + 16);
   }
   const width = right + left - PAD;
   return {
@@ -229,7 +240,7 @@ export function renderTimeline(
     defs = [];
   const select = (kind, o) =>
     interactive
-      ? ` data-kind="${kind}" data-id="${esc(o.id)}" tabindex="0" role="button" aria-label="${esc(textFor(o, "label", language) || textFor(o, "text", language) || o.type || "Element")}"`
+      ? ` data-kind="${kind}" data-id="${esc(o.id)}" tabindex="0" role="button" aria-label="${esc(textFor(o, "label", language) || textFor(o, "text", language) || textFor(o, "topText", language) || textFor(o, "bottomText", language) || o.type || "Element")}"`
       : "";
   const outline = (kind, o, xx, yy, w, h) =>
     selected?.kind === kind && selected.id === o.id
@@ -260,7 +271,7 @@ export function renderTimeline(
       start = eventStartY(d, e),
       end = eventEndY(d, e),
       caption = eventCaption(d, e);
-    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="${e.color}" stroke-width="${e.width}"/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="transparent" stroke-width="12"/>` : ""}<text ${interactive ? 'data-event-caption="true" style="cursor:move"' : ""} x="${xx + caption.offsetX}" y="${caption.y}" dominant-baseline="central" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, Math.min(start, end), 1, Math.abs(end - start))}</g>`;
+    return `<g${select("events", e)} style="${interactive ? "cursor:move" : ""}"><line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="${e.color}" stroke-width="${e.width}" ${e.dotted ? `stroke-dasharray="0 ${e.width * 3}" stroke-linecap="round"` : ""}/>${interactive ? `<line x1="${xx}" x2="${xx}" y1="${start}" y2="${end}" stroke="transparent" stroke-width="12"/>` : ""}<text ${interactive ? 'data-event-caption="true" style="cursor:move"' : ""} x="${xx + caption.offsetX}" y="${caption.y}" dominant-baseline="central" fill="${e.color}" font-size="11">${esc(textFor(e, "label", language))}</text>${outline("events", e, xx, Math.min(start, end), 1, Math.abs(end - start))}</g>`;
   }
   let content = `<rect width="${width}" height="${height}" fill="${d.background}"/>`;
   if (d.majorGrid) {
@@ -318,7 +329,7 @@ export function renderTimeline(
     );
     const path = ribbon.path;
     const caption = barCaption(d, b);
-    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/><text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(caption.year) + caption.offsetX}" y="${caption.y}" text-anchor="${caption.anchor}" dominant-baseline="central" fill="${caption.color}" font-size="${caption.size}" ${caption.clipped ? `clip-path="url(#${clip})"` : ""}>${esc(textFor(b, "label", language))}</text>${outline("bars", b, a, ribbon.top, len, ribbon.bottom - ribbon.top)}</g>`;
+    content += `<g${select("bars", b)} style="${interactive ? "cursor:move" : ""}"><path d="${path}" fill="url(#${grad})"/>${b.showCaption === false ? "" : `<text ${interactive ? 'data-caption="true" style="cursor:ew-resize"' : ""} x="${x(caption.year) + caption.offsetX}" y="${caption.y}" text-anchor="${caption.anchor}" dominant-baseline="central" fill="${caption.color}" font-size="${caption.size}" ${caption.clipped ? `clip-path="url(#${clip})"` : ""}>${esc(textFor(b, "label", language))}</text>`}${outline("bars", b, a, ribbon.top, len, ribbon.bottom - ribbon.top)}</g>`;
   }
   for (const stored of d.overlays) {
     const o = {
@@ -330,7 +341,29 @@ export function renderTimeline(
     let body = "";
     if (o.type === "image")
       body = `<image href="/media/${esc(o.mediaId)}.png" x="${xx}" y="${o.y}" width="${o.width}" height="${o.height}" preserveAspectRatio="xMidYMid meet"/>`;
-    else {
+    else if (o.type === "brace") {
+      const bw = o.braceWidth ?? 24;
+      body = `<path class="curly-bracket" transform="translate(${xx},${o.y})" d="${bracePath(bw, o.height)}" fill="none" stroke="${o.color}" stroke-width="${o.strokeWidth ?? 1.5}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      for (const [field, position] of [
+        ["topText", "top"],
+        ["text", "center"],
+        ["bottomText", "bottom"],
+      ]) {
+        const text = textFor(stored, field, language);
+        if (!text.trim()) continue;
+        const lines = wrappedLines(text, o.width - bw - 12, o.fontSize);
+        const step = o.fontSize * 1.4,
+          block = (lines.length - 1) * step;
+        const y =
+          o.y +
+          (position === "top"
+            ? o.fontSize / 2
+            : position === "bottom"
+              ? o.height - o.fontSize / 2 - block
+              : o.height / 2 - block / 2);
+        body += `<text data-brace-caption="${position}" x="${xx + bw + 12}" y="${y}" fill="${o.color}" font-size="${o.fontSize}" dominant-baseline="central">${lines.map((line, index) => `<tspan x="${xx + bw + 12}" dy="${index ? step : 0}">${esc(line)}</tspan>`).join("")}</text>`;
+      }
+    } else {
       if (o.type === "box")
         body = `<rect x="${xx}" y="${o.y}" width="${o.width}" height="${o.height}" fill="${o.fill}" rx="3"/>`;
       const inset = o.type === "box" ? 8 : 0;
@@ -346,7 +379,7 @@ export function renderTimeline(
         .join("")}</text>`;
     }
     const viewAttributes = viewing
-      ? ` data-view-id="${esc(o.id)}" tabindex="0" role="button" aria-label="${esc(textFor(o, "text", language) || o.type)}"`
+      ? ` data-view-id="${esc(o.id)}" tabindex="0" role="button" aria-label="${esc(textFor(o, "text", language) || textFor(o, "topText", language) || textFor(o, "bottomText", language) || o.type)}"`
       : "";
     content += `<g${select("overlays", o)}${viewAttributes} style="${interactive ? "cursor:move" : viewing ? "cursor:zoom-in" : ""}">${interactive || viewing ? `<rect x="${xx}" y="${o.y}" width="${o.width}" height="${o.height}" fill="transparent"/>` : ""}${body}${outline("overlays", o, xx, o.y, o.width, o.height)}</g>`;
   }

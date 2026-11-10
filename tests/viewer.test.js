@@ -17,6 +17,23 @@ test("compact public header switches translated title, content and exported SVG 
     type: "image",
     mediaId: "a".repeat(32),
   });
+  doc.overlays.push({
+    ...doc.overlays[0],
+    id: "brace1",
+    type: "brace",
+    year: 1,
+    y: 200,
+    width: 240,
+    height: 320,
+    text: "Group",
+    topText: "Top",
+    bottomText: "Bottom",
+    braceWidth: 24,
+    strokeWidth: 2,
+    translations: {
+      fi: { topText: "Alku", text: "Ryhmä", bottomText: "Loppu" },
+    },
+  });
   const html = readFileSync(
     new URL("../chronosmos/templates/viewer.html", import.meta.url),
     "utf8",
@@ -150,6 +167,13 @@ test("compact public header switches translated title, content and exported SVG 
   assert.match(svg, /<title>Perinteiden aikajana<\/title>/);
   assert.match(svg, /Egyptiläiset perinteet/);
   assert.ok(svg.includes(doc.description));
+  click($('[data-view-id="brace1"]'));
+  assert.ok($("#detail-dialog svg .curly-bracket"));
+  assert.match($("#detail-dialog").textContent, /Alku/);
+  assert.match($("#detail-dialog").textContent, /Ryhmä/);
+  assert.match($("#detail-dialog").textContent, /Loppu/);
+  click($("#detail-dialog svg path"));
+  assert.equal($("#detail-dialog").open, false);
   await $('[data-export="package"]').onclick();
   assert.equal(await exported.text(), "public package");
   dom.window.close();

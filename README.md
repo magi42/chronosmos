@@ -57,11 +57,21 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   clipped; horizontal canvas margins expand to contain them. **Caption text size**
   defaults to Auto and can be set to a fixed font size. Caption color and offsets
   are editable separately. Dragging a caption switches it to free positioning.
-  Drag the colored bar itself to move the whole bar.
+  Uncheck **Show bar caption** to hide the text on the canvas and in exports.
+  Its caption and translations remain the bar's name in the composition tree,
+  anchor choices, merge choices and other selectors. Drag the colored bar itself
+  to move the whole bar.
 - Add text, boxes and illustrations from Overlays. Text supports line breaks and
   wraps within its configured width. Adjust position, dimensions, color and font
   size in Properties. Captions are also editable directly as bar properties.
-- For text, boxes and illustrations, choose **Anchor to time bar**, an **Anchor
+- Use **Overlays → Curly bracket** to group items with a vertically stretchable
+  brace. Set its height, overall width, bracket width, line width, color and font
+  size. Separate **Top caption**, **Middle caption (right)** and **Bottom caption**
+  fields each support English and Finnish. Leave a caption blank to omit it.
+  The brace uses vector curls and straight arms so changing its height preserves
+  line width and text size. Brackets can be moved, duplicated, anchored to bars,
+  enlarged in the viewer and included in every export and timeline package.
+- For text, boxes, brackets and illustrations, choose **Anchor to time bar**, an **Anchor
   year** within that bar, and an **Offset from bar top**. Negative offsets place
   items above the bar. Anchors follow its vertical position and merge curve;
   moving the whole bar also shifts anchor years and captions by the same elapsed
@@ -81,7 +91,8 @@ empty library. Schema creation is idempotent; it does not reset existing data.
   position. Axis endpoints follow the axis when the canvas height changes.
   Set **Event caption position** to top, bottom, center or free. Free captions
   have an editable vertical position and horizontal offset; dragging the text
-  places it freely without moving the event line.
+  places it freely without moving the event line. Enable **Dotted line** for
+  round dots; the default remains a solid line.
 - Select layers or canvas objects to edit them. Drag a bar vertically by default;
   hold **Shift** to also move it in time. Its height-change periods, captions,
   anchored graphics, event lines and branch endpoints move with it. Overlays can be dragged

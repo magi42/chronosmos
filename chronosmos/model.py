@@ -98,6 +98,8 @@ def validate(doc):
         num(b, 'fadeOut', 0, 2 * MAX_YEAR)
         if b.get('heightAlignment', 'center') not in ('top', 'center', 'bottom'):
             raise ValueError('Invalid height alignment.')
+        if not isinstance(b.get('showCaption', True), bool):
+            raise ValueError('Invalid bar caption visibility.')
         if b.get('captionPosition', 'inside') not in ('inside', 'right', 'left', 'above', 'below', 'free'):
             raise ValueError('Invalid bar caption position.')
         if b.get('captionFontSize', 'auto') != 'auto':
@@ -159,7 +161,7 @@ def validate(doc):
             if not ordinal(bar['start']) <= ordinal(point) <= ordinal(bar['end']):
                 raise ValueError('A branch endpoint must be within its time bar.')
     for o in overlays:
-        if o.get('type') not in ('text', 'box', 'image'):
+        if o.get('type') not in ('text', 'box', 'image', 'brace'):
             raise ValueError('Invalid overlay type.')
         year(o, 'year')
         anchor = text(o, 'anchorBarId', 80, False)
@@ -174,7 +176,16 @@ def validate(doc):
         num(o, 'width', 10, 2000)
         num(o, 'height', 10, 2000)
         text(o, 'text', 4000, False)
-        translations(o, {'text': 4000})
+        if o['type'] == 'brace':
+            text(o, 'topText', 4000, False)
+            text(o, 'bottomText', 4000, False)
+            translations(o, {'text': 4000, 'topText': 4000, 'bottomText': 4000})
+            width = num({'braceWidth': o.get('braceWidth', 24)}, 'braceWidth', 8, 160)
+            num({'strokeWidth': o.get('strokeWidth', 1.5)}, 'strokeWidth', .25, 20)
+            if o['width'] < width + 24:
+                raise ValueError('Leave at least 24 units for bracket captions.')
+        else:
+            translations(o, {'text': 4000})
         color(o, 'color')
         color(o, 'fill')
         num(o, 'fontSize', 6, 120)
@@ -207,6 +218,8 @@ def validate(doc):
             num(e, 'labelY', -4000, 8000)
         if 'labelOffsetX' in e:
             num(e, 'labelOffsetX', -2000, 2000)
+        if not isinstance(e.get('dotted', False), bool):
+            raise ValueError('Invalid dotted line setting.')
         num(e, 'width', .25, 20)
         color(e, 'color')
         if e.get('layer') not in ('under', 'over'):
