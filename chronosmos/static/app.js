@@ -1682,10 +1682,11 @@ function download(blob, name) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
-async function exportSvg() {
+async function exportSvg(horizontalScale) {
   const parsed = new DOMParser().parseFromString(
     renderTimeline(doc, {
       language,
+      horizontalScale,
       pixelScale: (doc.mmPerYear * 96) / 25.4 / pixelsPerYear(doc),
     }),
     "image/svg+xml",
@@ -1707,8 +1708,19 @@ async function exportSvg() {
 function openExport() {
   if (!doc) return;
   const dialog = $("#export-dialog"),
-    dim = dimensions(doc, 1, language);
-  dialog.innerHTML = `${closeButton()}<div class="eyebrow">CHRONOSMOS</div><h2>${esc(t("exportTitle"))}</h2><p>${esc(t("exportText"))}</p><div class="print-dimensions"><span>${esc(t("printSize"))}</span><strong>${dim.widthMm.toFixed(1)} × ${dim.heightMm.toFixed(1)} mm</strong></div><label class="field"><span>${esc(t("pngScale"))}</span><select id="png-scale"><option value="1">96 DPI</option><option value="1.5625">150 DPI</option><option value="3.125">300 DPI</option></select></label><div class="export-options">${button("svg", 'data-export="svg" class="primary"')}${button("png", 'data-export="png"')}${button("json", 'data-export="json"')}${button("packageExport", 'data-export="package"')}${button("print", 'data-export="print"')}</div><p class="field-note">${esc(t("printHint"))}</p>`;
+    initialZoom = zoom;
+  dialog.innerHTML = `${closeButton()}<div class="eyebrow">CHRONOSMOS</div><h2>${esc(t("exportTitle"))}</h2><p>${esc(t("exportText"))}</p><label class="field"><span>${esc(t("exportZoom"))}</span><input id="export-zoom" type="number" value="${initialZoom}" min="0.05" max="32" step="any" required></label><p class="field-note">${esc(t("exportZoomHint"))}</p><div class="print-dimensions"><span>${esc(t("printSize"))}</span><strong id="export-dimensions" role="status"></strong></div><label class="field"><span>${esc(t("pngScale"))}</span><select id="png-scale"><option value="1">96 DPI</option><option value="1.5625">150 DPI</option><option value="3.125">300 DPI</option></select></label><div class="export-options">${button("svg", 'data-export="svg" class="primary"')}${button("png", 'data-export="png"')}${button("json", 'data-export="json"')}${button("packageExport", 'data-export="package"')}${button("print", 'data-export="print"')}</div><p class="field-note">${esc(t("printHint"))}</p>`;
+  const zoomInput = $("#export-zoom");
+  zoomInput.oninput = () => {
+    if (!zoomInput.checkValidity()) {
+      $("#export-dimensions").textContent = "—";
+      return;
+    }
+    const dim = dimensions(doc, Number(zoomInput.value), language);
+    $("#export-dimensions").textContent =
+      `${dim.widthMm.toFixed(1)} × ${dim.heightMm.toFixed(1)} mm`;
+  };
+  zoomInput.oninput();
   wireDialog(dialog);
   dialog.showModal();
   dialog.querySelectorAll("[data-export]").forEach(
@@ -1750,8 +1762,11 @@ function openExport() {
             );
             return;
           }
+          if (!zoomInput.reportValidity()) return;
+          const horizontalScale = Number(zoomInput.value);
+          const dim = dimensions(doc, horizontalScale, language);
           toast(t("exporting"));
-          const svg = await exportSvg();
+          const svg = await exportSvg(horizontalScale);
           if (format === "svg")
             download(new Blob([svg], { type: "image/svg+xml" }), name + ".svg");
           else if (format === "png") {

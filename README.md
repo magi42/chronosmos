@@ -148,9 +148,15 @@ to the date range, keeping long spans practical to view and edit. Print scale is
 entered in millimeters per selected unit (for example 10 mm per million years);
 the document always stores `mmPerYear`, and changing label units preserves it.
 
+The Export dialog's **Horizontal zoom factor** starts at the current viewer or
+editor zoom. Set it before downloading SVG/PNG or printing; the print dimensions
+update immediately. `1` uses the configured mm/year, and `2` doubles horizontal
+year spacing while keeping text, illustrations and vertical sizes fixed. The
+export factor does not change the saved composition or JSON/package contents.
+
 **SVG** is a standalone vector export with embedded illustration data and physical
-width/height in millimeters. The horizontal year distance exactly matches the
-configured mm/year. Canvas height and type scale proportionally; the displayed
+width/height in millimeters. The horizontal year distance matches the
+configured mm/year multiplied by the export zoom factor. Vertical sizes and text use the timeline’s base print scale. The displayed
 print dimensions include the outer canvas margins. Print at **100% / actual size**
 to retain the scale. Very large timelines may need a large-format printer or
 tiling in an external print application.

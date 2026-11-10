@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
+import { dimensions } from "../chronosmos/static/timeline.js";
 
 test("compact public header switches translated title, content and exported SVG with English fallback", async () => {
   const doc = JSON.parse(
@@ -154,7 +155,13 @@ test("compact public header switches translated title, content and exported SVG 
   assert.equal(document.title, doc.title + " · Chronosmos");
   assert.match($("#canvas").textContent, /Egyptian traditions/);
   $(".language").onclick();
+  $("#zoom-in").onclick();
+  $("#zoom-in").onclick();
+  const canvasWidth = $("#canvas svg").getAttribute("viewBox").split(" ")[2];
+  const canvasHeight = $("#canvas svg").getAttribute("viewBox").split(" ")[3];
   $("#export-open").onclick();
+  const defaultFactor = Number($("#export-zoom").value);
+  assert.equal(String(dimensions(doc, defaultFactor, "fi").width), canvasWidth);
   let exported;
   URL.createObjectURL = (blob) => {
     exported = blob;
@@ -167,6 +174,84 @@ test("compact public header switches translated title, content and exported SVG 
   assert.match(svg, /<title>Perinteiden aikajana<\/title>/);
   assert.match(svg, /Egyptiläiset perinteet/);
   assert.ok(svg.includes(doc.description));
+  const parseSvg = (source) =>
+    new DOMParser().parseFromString(source, "image/svg+xml").documentElement;
+  const initialSvg = parseSvg(svg);
+  assert.equal(initialSvg.getAttribute("viewBox").split(" ")[2], canvasWidth);
+  assert.equal(initialSvg.getAttribute("viewBox").split(" ")[3], canvasHeight);
+  const zoomInput = $("#export-zoom");
+  zoomInput.value = "2.5";
+  zoomInput.oninput();
+  const chosen = dimensions(doc, 2.5, "fi");
+  assert.equal(
+    $("#export-dimensions").textContent,
+    `${chosen.widthMm.toFixed(1)} × ${chosen.heightMm.toFixed(1)} mm`,
+  );
+  await $('[data-export="svg"]').onclick();
+  const chosenSvg = parseSvg(await exported.text());
+  assert.equal(parseFloat(chosenSvg.getAttribute("width")), chosen.widthMm);
+  assert.equal(
+    parseFloat(chosenSvg.getAttribute("height")),
+    dimensions(doc, 1, "fi").heightMm,
+  );
+  assert.equal(
+    chosenSvg.querySelector("image").getAttribute("height"),
+    initialSvg.querySelector("image").getAttribute("height"),
+  );
+  assert.equal(
+    $("#canvas svg").getAttribute("viewBox").split(" ")[2],
+    canvasWidth,
+  );
+
+  let raster;
+  globalThis.Image = class {
+    set src(value) {
+      queueMicrotask(() => this.onload());
+    }
+  };
+  dom.window.HTMLCanvasElement.prototype.getContext = function () {
+    raster = this;
+    return { drawImage() {} };
+  };
+  dom.window.HTMLCanvasElement.prototype.toBlob = function (callback) {
+    callback(new Blob(["png output"], { type: "image/png" }));
+  };
+  await $('[data-export="png"]').onclick();
+  assert.equal(raster.width, Math.ceil((chosen.widthMm * 96) / 25.4));
+  assert.equal(raster.height, Math.ceil((chosen.heightMm * 96) / 25.4));
+  assert.equal(await exported.text(), "png output");
+
+  zoomInput.value = "0.75";
+  zoomInput.oninput();
+  const printSize = dimensions(doc, 0.75, "fi");
+  let printed;
+  window.print = () => {
+    const area = $("#print-area");
+    printed = area.querySelector("svg").outerHTML;
+    assert.match(
+      area.querySelector("style").textContent,
+      new RegExp(`size: ${printSize.widthMm}mm ${printSize.heightMm}mm`),
+    );
+  };
+  await $('[data-export="print"]').onclick();
+  assert.equal(
+    parseFloat(parseSvg(printed).getAttribute("width")),
+    printSize.widthMm,
+  );
+  assert.equal($("#print-area"), null);
+  const previous = exported;
+  for (const invalid of ["0", "33", ""]) {
+    zoomInput.value = invalid;
+    zoomInput.oninput();
+    assert.equal($("#export-dimensions").textContent, "—");
+    await $('[data-export="svg"]').onclick();
+    assert.equal(exported, previous);
+  }
+  $("#export-dialog").close();
+  $("#zoom-in").onclick();
+  $("#export-open").onclick();
+  assert.ok(Number($("#export-zoom").value) > defaultFactor);
+  assert.notEqual($("#export-zoom").value, "0.75");
   click($('[data-view-id="brace1"]'));
   assert.ok($("#detail-dialog svg .curly-bracket"));
   assert.match($("#detail-dialog").textContent, /Alku/);

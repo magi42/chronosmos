@@ -1,5 +1,9 @@
 export const translations = {
   en: {
+    exportZoom: "Horizontal zoom factor",
+    exportZoomHint:
+      "Controls SVG, PNG and print. 1× uses the configured millimeters per year. Text, graphics and vertical sizes stay fixed.",
+
     dottedLine: "Dotted line",
     showCaption: "Show bar caption",
     hiddenCaptionHint:
@@ -256,6 +260,10 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    exportZoom: "Vaakasuuntainen zoomauskerroin",
+    exportZoomHint:
+      "Vaikuttaa SVG-, PNG- ja tulostusvientiin. 1× käyttää aikajanan tulostusmittakaavaa. Tekstien, kuvien ja pystysuunnan koot säilyvät.",
+
     dottedLine: "Pisteviiva",
     showCaption: "Näytä palkin teksti",
     hiddenCaptionHint:
