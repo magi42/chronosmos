@@ -282,3 +282,49 @@ its own schema; use a dedicated test database. Tests cover public/draft isolatio
 publication and path changes, stale revisions, authentication, CSRF, rate limiting,
 account revocation, media reference integrity, years, fades, spline geometry,
 export dimensions, ruler placement, escaping, and editor interactions.
+
+## AI-assisted editing
+
+Configured editors can choose **New with AI** in `/manage`, or **AI assistant**
+inside a timeline to research and add bars. The server uses OpenAI's Responses
+API with `gpt-6.1-sol`, mandatory web search and a structured proposal. Review
+all proposed years, uncertainty notes and clickable sources, select the bars,
+then apply them to the unsaved draft. Saving and publishing remain explicit.
+English is the base content language; Finnish translations can be authored as usual.
+AI research cannot replace/delete existing bars or publish a timeline.
+
+The normal deployment initializes the additive `ai_jobs` table automatically.
+For an existing local database, run the usual `flask --app wsgi init-db` command.
+
+Set `OPENAI_API_KEY` in the server's private environment file. For deployment,
+put `OPENAI_API_KEY=...` in the ignored local `.env` (never in Git or chat), then
+run `python3 scripts/configure_openai.py`. It reads the SSH target from ignored
+local configuration, restricts the local file to mode 0600, transfers the key
+only through SSH stdin, atomically updates the private server environment,
+and restarts Chronosmos. With no file/key, it asks via a hidden terminal prompt.
+No API key is sent to browsers or included in timeline exports/packages.
+
+Requests and the existing timeline's title, years and bar names/dates are sent
+to OpenAI. Media, login credentials and unrelated content are excluded. API
+usage is charged to the configured OpenAI account. Background research is
+polled by authenticated editors; one pending job per account is allowed.
+Completed proposals are cached privately until the next request. OpenAI
+background requests use `store=false`; provider retention rules still apply.
+Sources are preserved as bar `research` metadata and in timeline packages.
+The server requires each source URL to have been returned by web research;
+editors must still check whether it supports the dates and interpretation.
+
+## Joined periods
+
+Select a bar, then **Properties → Joined periods → + Joined period**. Choose
+its peer bar, start/end years and transition length in elapsed years. The
+transition uses smooth splines inside either end of the period; between them
+the bars share a seam and each contributes half its normal thickness. Unequal
+bar heights and thickness changes are retained proportionally. Outside the
+period they resume their normal geometry. Periods must fit both bars and
+cannot overlap another joined period on either bar or an end merge.
+
+Drag the shared section to move both bars vertically; Shift also moves both
+in time, including anchors and the joined interval. Drag outside it to move a
+single bar. Single-bar horizontal moves keep joined dates within both bars.
+The same geometry drives anchors, event endpoints, viewing and visual exports.

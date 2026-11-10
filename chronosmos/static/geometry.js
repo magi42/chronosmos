@@ -39,7 +39,7 @@ export function heightAt(bar, at) {
   }
   return { height, dh: 0 };
 }
-export function sectionAt(d, bar, at, seen = new Set()) {
+function baseSectionAt(d, bar, at, seen = new Set()) {
   const base = heightAt(bar, at);
   const factor = { top: 0, center: 0.5, bottom: 1 }[
     bar.heightAlignment ?? "center"
@@ -78,6 +78,79 @@ export function sectionAt(d, bar, at, seen = new Set()) {
     dh: base.dh * (1 - blend) + (to.height - base.height) * derivative,
   };
 }
+// A joined pair shares a seam; each ribbon contributes half of its own height.
+export function joinedPeriodAt(d, barId, at) {
+  return (d.joinedPeriods ?? []).find(
+    (p) =>
+      (p.fromBarId === barId || p.toBarId === barId) &&
+      at > atYear(p.start) &&
+      at < atYear(p.end),
+  );
+}
+export function sectionAt(d, bar, at, seen = new Set()) {
+  const own = baseSectionAt(d, bar, at, seen);
+  const join = joinedPeriodAt(d, bar.id, at);
+  if (!join || seen.has(bar.id)) return own;
+  const other = d.bars.find(
+    (b) => b.id === (join.fromBarId === bar.id ? join.toBarId : join.fromBarId),
+  );
+  if (!other) return own;
+  const visited = new Set(seen);
+  visited.add(bar.id);
+  visited.add(other.id);
+  const peer = baseSectionAt(d, other, at, visited);
+  const duration = join.transitionYears;
+  const incoming = at - atYear(join.start),
+    outgoing = atYear(join.end) - at;
+  const t = Math.max(0, Math.min(1, Math.min(incoming, outgoing) / duration));
+  const w = t * t * (3 - 2 * t),
+    dw =
+      t < 1
+        ? ((6 * t * (1 - t)) / duration) * (incoming < outgoing ? 1 : -1)
+        : 0;
+  // Keep ordering stable even when height-alignment or end merges change y.
+  const upper = bar.y < other.y || (bar.y === other.y && bar.id < other.id);
+  const seam = (own.y + own.height / 2 + peer.y + peer.height / 2) / 2;
+  const ds = (own.dy + own.dh / 2 + peer.dy + peer.dh / 2) / 2;
+  const targetY = seam - (upper ? own.height / 2 : 0);
+  const targetDy = ds - (upper ? own.dh / 2 : 0);
+  return {
+    y: own.y + (targetY - own.y) * w,
+    dy: own.dy * (1 - w) + targetDy * w + (targetY - own.y) * dw,
+    height: own.height * (1 - w / 2),
+    dh: own.dh * (1 - w / 2) - (own.height * dw) / 2,
+  };
+}
+export function validJoinedPeriods(d) {
+  const occupied = new Map();
+  return (d.joinedPeriods ?? []).every((p) => {
+    const a = atYear(p.start),
+      z = atYear(p.end);
+    if (
+      ![p.start, p.end].every((v) => Number.isInteger(v) && v !== 0) ||
+      a >= z ||
+      !Number.isFinite(p.transitionYears) ||
+      p.transitionYears < 0.01 ||
+      p.transitionYears > (z - a) / 2 ||
+      p.fromBarId === p.toBarId
+    )
+      return false;
+    return [p.fromBarId, p.toBarId].every((id) => {
+      const b = d.bars.find((b) => b.id === id),
+        spans = occupied.get(id) ?? [];
+      if (
+        !b ||
+        a < atYear(b.start) ||
+        z > atYear(b.end) ||
+        (b.mergeInto && z > atYear(b.end) - b.mergeYears) ||
+        spans.some(([s, e]) => a < e && z > s)
+      )
+        return false;
+      occupied.set(id, [...spans, [a, z]]);
+      return true;
+    });
+  });
+}
 export function barSectionAt(d, bar, year) {
   return sectionAt(d, bar, atYear(year));
 }
@@ -92,6 +165,25 @@ export function ribbonPath(d, bar, x) {
     knots.add(atYear(p.end));
   }
   if (merge) knots.add(end - merge);
+  const joins = (d.joinedPeriods ?? []).filter(
+    (p) => p.fromBarId === bar.id || p.toBarId === bar.id,
+  );
+  for (const p of joins) {
+    for (const at of [
+      atYear(p.start),
+      atYear(p.start) + p.transitionYears,
+      atYear(p.end) - p.transitionYears,
+      atYear(p.end),
+    ])
+      knots.add(at);
+    const peer = d.bars.find(
+      (b) => b.id === (p.fromBarId === bar.id ? p.toBarId : p.fromBarId),
+    );
+    for (const h of peer?.heightPeriods ?? []) {
+      knots.add(atYear(h.start));
+      knots.add(atYear(h.end));
+    }
+  }
   const ordered = [...knots]
     .filter((v) => v >= start && v <= end)
     .sort((a, b) => a - b);
@@ -99,7 +191,8 @@ export function ribbonPath(d, bar, x) {
   // height changes continuous in position and tangent at every interval boundary.
   const points = [];
   for (let i = 0; i < ordered.length - 1; i++) {
-    const count = merge && ordered[i + 1] > end - merge ? 8 : 1;
+    const count =
+      joins.length || (merge && ordered[i + 1] > end - merge) ? 8 : 1;
     for (let j = 0; j < count; j++)
       points.push(ordered[i] + ((ordered[i + 1] - ordered[i]) * j) / count);
   }
@@ -120,7 +213,7 @@ export function ribbonPath(d, bar, x) {
       .join(" ");
   // Preserve the original exact merge spline for bars without height changes.
   let path;
-  if (!bar.heightPeriods?.length) {
+  if (!bar.heightPeriods?.length && !joins.length) {
     const a = x(start),
       z = x(end),
       m = x(end - merge),

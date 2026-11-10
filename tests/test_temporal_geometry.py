@@ -145,3 +145,36 @@ def test_caption_positions_and_sizes_survive_publication(client, auth):
     ident=result.json['id']
     client.post(f'/api/timelines/{ident}/publish',json=dict(published=True,revision=1),headers=auth)
     assert client.get(f'/api/timelines/{ident}').json['document'] == doc
+
+
+def joined_document():
+    doc=sample()
+    doc['joinedPeriods']=[dict(id='join1',fromBarId='egypt',toBarId='jewish',start=-100,end=100,transitionYears=30)]
+    return doc
+
+
+@pytest.mark.parametrize('mutation',[
+    lambda d: d['joinedPeriods'][0].update(start=0),
+    lambda d: d['joinedPeriods'][0].update(end=-100),
+    lambda d: d['joinedPeriods'][0].update(start=-2000),
+    lambda d: d['joinedPeriods'][0].update(toBarId='egypt'),
+    lambda d: d['joinedPeriods'][0].update(fromBarId='missing'),
+    lambda d: d['joinedPeriods'][0].update(transitionYears=0),
+    lambda d: d['joinedPeriods'][0].update(transitionYears=101),
+    lambda d: d['joinedPeriods'][0].update(id='egypt'),
+    lambda d: d['joinedPeriods'].append(dict(id='join2',fromBarId='jewish',toBarId='christian',start=1,end=150,transitionYears=10)),
+    lambda d: d['bars'][0].update(mergeInto='jewish',mergeYears=600),
+    lambda d: d.update(joinedPeriods={}),
+])
+def test_invalid_joined_periods(client,auth,mutation):
+    doc=joined_document();mutation(doc)
+    assert client.post('/api/timelines',json=doc,headers=auth).status_code == 400
+
+
+def test_joined_periods_preserved_in_draft_and_public_snapshot(client,auth):
+    doc=joined_document()
+    result=client.post('/api/timelines',json=doc,headers=auth)
+    assert result.status_code == 201
+    ident=result.json['id']
+    assert client.post(f'/api/timelines/{ident}/publish',json=dict(published=True,revision=1),headers=auth).status_code == 200
+    assert client.get(f'/api/timelines/{ident}').json['document'] == doc

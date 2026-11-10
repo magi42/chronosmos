@@ -1590,3 +1590,52 @@ dialog .dialog-close {
   max-width: 80vw;
   height: auto;
 }
+
+#ai-dialog {
+  width: min(740px, 94vw);
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+#ai-prompt {
+  min-height: 110px;
+  resize: vertical;
+}
+.ai-bar {
+  border: 1px solid var(--line);
+  padding: 14px;
+  margin: 12px 0;
+  border-radius: 5px;
+}
+.ai-bar p {
+  margin: 8px 0;
+}
+.research {
+  font-size: 12px;
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.research summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.research ul {
+  padding-left: 18px;
+}
+.research li {
+  margin: 6px 0;
+}
+.research a {
+  text-decoration: underline;
+}
+
+.viewer-sources {
+  margin: 16px 40px 32px;
+  max-width: 900px;
+}
+.viewer-sources > summary {
+  cursor: pointer;
+}
+.viewer-sources h3 {
+  margin-top: 20px;
+  font-size: 14px;
+}

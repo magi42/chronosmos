@@ -73,10 +73,11 @@ def validate(doc):
         raise ValueError('Invalid scale position.')
     bars, overlays, events = (doc.get(k) for k in ('bars', 'overlays', 'events'))
     branches = doc.get('branches', [])
-    if not all(isinstance(v, list) and len(v) <= 500 for v in (bars, overlays, events, branches)):
-        raise ValueError('Each timeline supports up to 500 bars, overlays, event lines and branches.')
+    joins = doc.get('joinedPeriods', [])
+    if not all(isinstance(v, list) and len(v) <= 500 for v in (bars, overlays, events, branches, joins)):
+        raise ValueError('Each timeline supports up to 500 bars, overlays, event lines, branches and joined periods.')
     ids = set()
-    for item in bars + overlays + events + branches:
+    for item in bars + overlays + events + branches + joins:
         if not isinstance(item, dict):
             raise ValueError('Invalid timeline element.')
         ident = text(item, 'id', 80)
@@ -87,6 +88,22 @@ def validate(doc):
     for b in bars:
         text(b, 'label', 250, False)
         translations(b, {'label': 250})
+        if 'research' in b:
+            from .ai import source_url
+            research = b['research']
+            if not isinstance(research, dict):
+                raise ValueError('Invalid research metadata.')
+            text(research, 'model', 100)
+            text(research, 'checkedAt', 100)
+            text(research, 'note', 4000, False)
+            sources = research.get('sources')
+            if not isinstance(sources, list) or not 1 <= len(sources) <= 20:
+                raise ValueError('Research needs 1–20 source links.')
+            for source in sources:
+                if not isinstance(source, dict) or not source_url(source.get('url')):
+                    raise ValueError('Invalid research source URL.')
+                text(source, 'title', 500)
+
         a, z = year(b, 'start'), year(b, 'end')
         if ordinal(z) <= ordinal(a):
             raise ValueError('A bar must end after it starts.')
@@ -151,6 +168,24 @@ def validate(doc):
                 raise ValueError('Bar merges cannot form a cycle.')
             seen.add(cur)
             cur = text(bar_ids[cur], 'mergeInto', 80, False)
+    occupied = {}
+    for joined in joins:
+        pair = [bar_ids.get(text(joined, key, 80)) for key in ('fromBarId', 'toBarId')]
+        if any(b is None for b in pair) or pair[0] is pair[1]:
+            raise ValueError('A joined period needs two different existing time bars.')
+        a, z = ordinal(year(joined, 'start')), ordinal(year(joined, 'end'))
+        if a >= z:
+            raise ValueError('A joined period must end after it starts.')
+        num(joined, 'transitionYears', .01, (z-a)/2)
+        for bar in pair:
+            if not ordinal(bar['start']) <= a < z <= ordinal(bar['end']):
+                raise ValueError('A joined period must be within both time bars.')
+            if bar.get('mergeInto') and z > ordinal(bar['end']) - bar['mergeYears']:
+                raise ValueError('A joined period cannot overlap an end merge.')
+            spans = occupied.setdefault(bar['id'], [])
+            if any(a < end and z > start for start, end in spans):
+                raise ValueError('Joined periods on a time bar cannot overlap.')
+            spans.append((a, z))
     for branch in branches:
         source = bar_ids.get(text(branch, 'fromBarId', 80))
         target = bar_ids.get(text(branch, 'toBarId', 80))

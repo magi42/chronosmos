@@ -219,3 +219,56 @@ test("branch thickness is measured across steep curves and smoothly blends endpo
     }
   }
 });
+
+test("joined periods smoothly share a seam and half heights, then resume their original shape", () => {
+  const d = structuredClone(sample),
+    a = d.bars[0],
+    b = d.bars.find((b) => b.id === "jewish");
+  a.heightPeriods = [{ id: "height", start: -80, end: 80, height: 60 }];
+  d.joinedPeriods = [
+    {
+      id: "joined",
+      fromBarId: a.id,
+      toBarId: b.id,
+      start: -100,
+      end: 100,
+      transitionYears: 30,
+    },
+  ];
+  const plain = { ...d, joinedPeriods: [] };
+  for (const year of [-200, -100, 100, 200])
+    assert.deepEqual(barSectionAt(d, a, year), barSectionAt(plain, a, year));
+  for (const year of [-70, -1, 1, 70]) {
+    const sa = barSectionAt(d, a, year),
+      sb = barSectionAt(d, b, year);
+    assert.ok(Math.abs(sa.y + sa.height - sb.y) < 1e-9);
+    assert.equal(sa.height, barSectionAt(plain, a, year).height / 2);
+    assert.equal(sb.height, barSectionAt(plain, b, year).height / 2);
+    assert.ok(Math.abs(sa.dy + sa.dh - sb.dy) < 1e-9);
+  }
+  for (const at of [
+    ordinal(-100),
+    ordinal(-100) + 30,
+    ordinal(100) - 30,
+    ordinal(100),
+  ]) {
+    const left = sectionAt(d, a, at - 1e-5),
+      right = sectionAt(d, a, at + 1e-5);
+    assert.ok(Math.abs(left.y - right.y) < 0.001);
+    assert.ok(Math.abs(left.dy - right.dy) < 0.001);
+  }
+  const s1 = barSectionAt(d, a, -85),
+    s2 = barSectionAt(plain, a, -85);
+  assert.ok(s1.height < s2.height && s1.height > s2.height / 2);
+  for (const scale of [0.5, 1, 4]) {
+    const svg = new JSDOM(renderTimeline(d, { horizontalScale: scale }), {
+      contentType: "image/svg+xml",
+    }).window.document;
+    const path =
+      svg.querySelector(`[data-id="${a.id}"] path`) ??
+      svg.querySelector("path");
+    assert.ok(path);
+    assert.doesNotMatch(svg.documentElement.outerHTML, /NaN|Infinity/);
+    assert.ok(ribbonPath(d, a, (at) => at * scale).path.includes("C"));
+  }
+});

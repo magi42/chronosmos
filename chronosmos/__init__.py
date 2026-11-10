@@ -18,7 +18,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import db
+from . import db, ai
 from .model import validate
 from .packages import build_package, read_package, media_ids, MAX_PACKAGE
 
@@ -44,6 +44,7 @@ def create_app(config=None):
                 f.write(secrets.token_hex(32))
         secret = keyfile.read_text()
     app.config.update(
+        OPENAI_API_KEY=os.environ.get('OPENAI_API_KEY', ''),
         SECRET_KEY=secret, DATABASE_URL=os.environ.get('CHRONOSMOS_DATABASE_URL', ''),
         SQLITE_PATH=str(data / 'chronosmos.sqlite3'), MEDIA_DIR=str(data / 'media'),
         MAX_CONTENT_LENGTH=12 * 1024 * 1024, MAX_FORM_PARTS=10,
@@ -135,6 +136,80 @@ def create_app(config=None):
                     bars=len(doc['bars']), revision=row['revision'], updated=row['updated'],
                     published=bool(row['published']), publishedSlug=row['published_slug'],
                     translations=doc.get('translations', {}))
+
+    @app.get('/api/ai/status')
+    @require_editor
+    def ai_status():
+        job = db.execute('SELECT id FROM ai_jobs WHERE username=? AND created>? AND result IS NULL AND error IS NULL', (editor()['username'], time.time()-1800)).fetchone()
+        return jsonify(configured=bool(app.config['OPENAI_API_KEY']), model=ai.MODEL, job=job['id'] if job else None)
+
+    @app.errorhandler(ai.AIError)
+    def ai_error(error):
+        return jsonify(error=str(error)), 502
+
+    @app.post('/api/ai/jobs')
+    @require_editor
+    def ai_create():
+        if not app.config['OPENAI_API_KEY']:
+            abort(503, 'AI is not configured. Ask the administrator to set OPENAI_API_KEY in the private server environment.')
+        body = json_body()
+        prompt = body.get('prompt')
+        if not isinstance(prompt, str) or not 10 <= len(prompt.strip()) <= 6000:
+            abort(400, 'Describe the requested time bars in 10–6000 characters.')
+        context = None
+        if body.get('document') is not None:
+            document = validate(body['document'])
+            context = {k: document[k] for k in ('title', 'start', 'end')}
+            context['bars'] = [{k: b[k] for k in ('label', 'start', 'end')} for b in document['bars']]
+        username, stamp = editor()['username'], time.time()
+        # Reserve a single job per account before calling OpenAI, including concurrent requests.
+        db.execute('DELETE FROM ai_jobs WHERE username=? AND (created<? OR result IS NOT NULL OR error IS NOT NULL)', (username, stamp-1800))
+        existing = db.execute('SELECT id FROM ai_jobs WHERE username=?', (username,)).fetchone()
+        if existing:
+            return jsonify(error='Research is already running. Resume it or wait before starting another request.', job=existing['id']), 409
+        job = secrets.token_hex(24)
+        try:
+            db.execute('INSERT INTO ai_jobs (id,username,response_id,created) VALUES (?,?,?,?)', (job, username, '', stamp))
+            db.connect().commit()
+        except (sqlite3.IntegrityError, psycopg.IntegrityError):
+            db.connect().rollback()
+            abort(409, 'Research is already running for this account.')
+        try:
+            result = ai.start(app.config['OPENAI_API_KEY'], prompt.strip(), context)
+            db.execute('UPDATE ai_jobs SET response_id=? WHERE id=?', (result['id'], job))
+            db.connect().commit()
+        except ai.AIError as e:
+            db.execute('UPDATE ai_jobs SET error=? WHERE id=?', (str(e), job))
+            db.connect().commit()
+            raise
+        return jsonify(job=job, status='researching'), 202
+
+    @app.get('/api/ai/jobs/<job>')
+    @require_editor
+    def ai_poll(job):
+        row = db.execute('SELECT * FROM ai_jobs WHERE id=? AND username=?', (job, editor()['username'])).fetchone()
+        if not row:
+            abort(404)
+        if row['error']:
+            return jsonify(status='failed', error=row['error'])
+        if row['result']:
+            return jsonify(status='completed', proposal=json.loads(row['result']))
+        if time.time() - row['created'] > 1800:
+            return jsonify(status='failed', error='Research expired. Start a new request.')
+        if not row['response_id']:
+            return jsonify(status='researching')
+        try:
+            result = ai.api_request(app.config['OPENAI_API_KEY'], '/' + row['response_id'])
+            if result.get('status') in ('queued', 'in_progress'):
+                return jsonify(status='researching')
+            value = ai.proposal(result)
+            db.execute('UPDATE ai_jobs SET result=? WHERE id=?', (json.dumps(value), job))
+            db.connect().commit()
+            return jsonify(status='completed', proposal=value)
+        except ai.AIError as e:
+            db.execute('UPDATE ai_jobs SET error=? WHERE id=?', (str(e), job))
+            db.connect().commit()
+            return jsonify(status='failed', error=str(e))
 
     @app.get('/healthz')
     def health():

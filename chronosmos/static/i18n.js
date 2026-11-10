@@ -1,5 +1,36 @@
 export const translations = {
   en: {
+    joinedPeriods: "Joined periods",
+    joinWith: "Join with bar",
+    transitionYears: "Transition length (years)",
+    addJoinedPeriod: "+ Joined period",
+    invalidJoinedPeriods:
+      "Joined periods must fit both bars, must not overlap other joined periods or end merges, and need a transition no longer than half the period.",
+    joinedPeriodHint:
+      "Each bar becomes half as thick along a shared seam. Splines join and separate them within the period. Drag this section to move both bars.",
+    aiNew: "New with AI",
+    aiAssistant: "AI assistant",
+    aiAddIntro: "Research and add new time bars to this timeline.",
+    aiNewIntro: "Describe a timeline to research and create.",
+    aiPrivacy:
+      "Your request and existing bar names/dates are sent to OpenAI for web research. Review the sources and dates before applying; nothing is saved or published automatically. API usage is billed to the configured account.",
+    aiRequest: "What should the timeline contain?",
+    aiResearch: "Research dates",
+    aiResearching:
+      "Researching sources and dates… This may take a few minutes. You can close this window while research continues.",
+    aiNotConfigured:
+      "The administrator needs to configure OPENAI_API_KEY in the private server environment.",
+    aiReview:
+      "Review each date, any uncertainty, and its sources. Choose the bars to add.",
+    aiApplyBars: "Add selected bars to draft",
+    aiApplyNew: "Create draft with selected bars",
+    aiDraftChanged:
+      "The draft changed during research. Reopen the assistant to review the proposal against the current draft.",
+    aiApplied:
+      "AI bars added to the unsaved draft. Review, save and publish when ready.",
+    aiTooManyBars: "A timeline supports at most 500 bars.",
+    dateSources: "Date notes and sources",
+
     exportStretch: "Horizontal stretch factor (%)",
     exportStretchHint:
       "Controls SVG, PNG and print. 100% uses the configured millimeters per year. Text, graphics and vertical sizes stay fixed.",
@@ -260,6 +291,37 @@ export const translations = {
     original: "Original size",
   },
   fi: {
+    joinedPeriods: "Yhteiset jaksot",
+    joinWith: "Yhdistä palkkiin",
+    transitionYears: "Siirtymän pituus (vuotta)",
+    addJoinedPeriod: "+ Yhteinen jakso",
+    invalidJoinedPeriods:
+      "Yhteisen jakson tulee mahtua molempiin palkkeihin. Jaksot tai loppuliitokset eivät saa limittyä. Siirtymä voi olla enintään puolet jaksosta.",
+    joinedPeriodHint:
+      "Palkit liittyvät yhteiseen saumaan puolikkaalla paksuudella. Splinekäyrät yhdistävät ja erottavat ne jakson sisällä. Jakson vetäminen siirtää molempia palkkeja.",
+    aiNew: "Uusi tekoälyllä",
+    aiAssistant: "Tekoälyavustaja",
+    aiAddIntro: "Tutki ja lisää tähän aikajanaan uusia aikapalkkeja.",
+    aiNewIntro: "Kuvaile tutkittava ja luotava aikajana.",
+    aiPrivacy:
+      "Pyyntö sekä olemassa olevien palkkien nimet ja vuodet lähetetään OpenAI:lle verkkotutkimusta varten. Tarkista lähteet ja vuodet ennen lisäämistä. Mitään ei tallenneta tai julkaista automaattisesti. API-käyttö laskutetaan määritetyltä tililtä.",
+    aiRequest: "Mitä aikajanan tulee sisältää?",
+    aiResearch: "Tutki ajoitukset",
+    aiResearching:
+      "Tutkitaan lähteitä ja ajoituksia… Tämä voi kestää muutaman minuutin. Voit sulkea ikkunan tutkimuksen jatkuessa.",
+    aiNotConfigured:
+      "Ylläpitäjän tulee asettaa OPENAI_API_KEY palvelimen yksityiseen ympäristötiedostoon.",
+    aiReview:
+      "Tarkista ajoitukset, epävarmuudet ja lähteet. Valitse lisättävät palkit.",
+    aiApplyBars: "Lisää valitut palkit luonnokseen",
+    aiApplyNew: "Luo luonnos valituista palkeista",
+    aiDraftChanged:
+      "Luonnos muuttui tutkimuksen aikana. Avaa avustaja uudelleen ja tarkista ehdotus nykyisen luonnoksen kanssa.",
+    aiApplied:
+      "Tekoälyn palkit lisätty tallentamattomaan luonnokseen. Tarkista, tallenna ja julkaise kun olet valmis.",
+    aiTooManyBars: "Aikajanaan mahtuu enintään 500 palkkia.",
+    dateSources: "Ajoitusten huomautukset ja lähteet",
+
     exportStretch: "Vaakasuuntainen venytyskerroin (%)",
     exportStretchHint:
       "Vaikuttaa SVG-, PNG- ja tulostusvientiin. 100 % käyttää aikajanan tulostusmittakaavaa. Tekstien, kuvien ja pystysuunnan koot säilyvät.",

@@ -3,11 +3,15 @@
 const controls = "input, textarea, select, button, a[href]";
 const keyFor = (control) =>
   control.id ||
-  (control.dataset.periodField
-    ? `period:${control.closest("[data-height-period]").dataset.heightPeriod}:${control.dataset.periodField}`
-    : control.dataset.removePeriod
-      ? `remove:${control.dataset.removePeriod}`
-      : control.getAttribute("href"));
+  (control.dataset.joinField
+    ? `join:${control.closest("[data-joined-period]").dataset.joinedPeriod}:${control.dataset.joinField}`
+    : control.dataset.removeJoin
+      ? `remove-join:${control.dataset.removeJoin}`
+      : control.dataset.periodField
+        ? `period:${control.closest("[data-height-period]").dataset.heightPeriod}:${control.dataset.periodField}`
+        : control.dataset.removePeriod
+          ? `remove:${control.dataset.removePeriod}`
+          : control.getAttribute("href"));
 function available(control, visibility) {
   if (
     control.disabled ||

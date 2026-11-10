@@ -1,7 +1,15 @@
+import { openAssistant } from "./ai-editor.js";
+import { researchHtml } from "./research.js";
 import { textWidth } from "./text-layout.js";
 import { wireInspectorNavigation } from "./inspector-focus.js";
 import { textFor } from "./content.js";
-import { validHeightPeriods, heightAt } from "./geometry.js";
+import { moveBars } from "./bar-motion.js";
+import {
+  validJoinedPeriods,
+  joinedPeriodAt,
+  validHeightPeriods,
+  heightAt,
+} from "./geometry.js";
 import { wireViewing } from "./viewing.js";
 import { t, language, translate, toggleLanguage } from "./i18n.js";
 import {
@@ -328,6 +336,17 @@ function renderViewerHeading() {
   $("#viewer-description").hidden = !description.trim();
   $("#viewer-description").title = description;
   $("#viewer-range").textContent = yearRange(doc);
+  const sources = $("#viewer-sources");
+  if (sources) {
+    const researched = doc.bars.filter((b) => b.research);
+    sources.hidden = !researched.length;
+    sources.querySelector("div").innerHTML = researched
+      .map(
+        (b) =>
+          `<h3>${esc(textFor(b, "label", language) || t("timeBar"))}</h3>${researchHtml(b.research, t("dateSources"))}`,
+      )
+      .join("");
+  }
 }
 async function refreshProjects() {
   projects = await api("/api/timelines?editor=1");
@@ -395,7 +414,7 @@ async function loadProject(id) {
   projectURL(id);
 }
 async function newProject() {
-  if (dirty() && !(await confirmAction(t("leaveQuestion")))) return;
+  if (dirty() && !(await confirmAction(t("leaveQuestion")))) return false;
   projectURL("new");
   doc = {
     version: 1,
@@ -424,6 +443,7 @@ async function newProject() {
   renderProjectPicker();
   renderEditor();
   fit();
+  return true;
 }
 function selectedItem() {
   return selected && doc?.[selected.kind]?.find((o) => o.id === selected.id);
@@ -618,6 +638,101 @@ function wireHeightPeriods(el, bar) {
     });
   };
 }
+function joinedPeriodFields(bar) {
+  const periods = (doc.joinedPeriods ?? []).filter(
+    (p) => p.fromBarId === bar.id || p.toBarId === bar.id,
+  );
+  return `<section class="height-periods"><h3>${esc(t("joinedPeriods"))}</h3>${periods
+    .map((p) => {
+      const otherId = p.fromBarId === bar.id ? p.toBarId : p.fromBarId;
+      return `<div class="height-period" data-joined-period="${p.id}"><label class="field"><span>${esc(t("joinWith"))}</span><select data-join-field="peer">${doc.bars
+        .filter((b) => b.id !== bar.id)
+        .map(
+          (b) =>
+            `<option value="${b.id}" ${b.id === otherId ? "selected" : ""}>${esc(textFor(b, "label", language) || t("timeBar"))}</option>`,
+        )
+        .join(
+          "",
+        )}</select></label>${["start", "end", "transitionYears"].map((key) => `<label class="field"><span>${esc(t(key))}</span><input type="number" data-join-field="${key}" value="${p[key]}" step="${key === "transitionYears" ? "any" : "1"}"></label>`).join("")}<button class="danger-text" data-remove-join="${p.id}">${esc(t("removePeriod"))}</button></div>`;
+    })
+    .join(
+      "",
+    )}<button id="add-joined-period" ${doc.bars.length < 2 ? "disabled" : ""}>${esc(t("addJoinedPeriod"))}</button><p class="field-note">${esc(t("joinedPeriodHint"))}</p></section>`;
+}
+function wireJoinedPeriods(bar) {
+  $$("[data-join-field]").forEach(
+    (input) =>
+      (input.onchange = () => {
+        const periods = structuredClone(doc.joinedPeriods),
+          p = periods.find(
+            (p) =>
+              p.id ===
+              input.closest("[data-joined-period]").dataset.joinedPeriod,
+          );
+        const key = input.dataset.joinField;
+        if (key === "peer")
+          p[p.fromBarId === bar.id ? "toBarId" : "fromBarId"] = input.value;
+        else p[key] = Number(input.value);
+        if (!validJoinedPeriods({ ...doc, joinedPeriods: periods })) {
+          toast(t("invalidJoinedPeriods"), true);
+          renderInspector();
+          return;
+        }
+        change(() => (doc.joinedPeriods = periods));
+      }),
+  );
+  $$("[data-remove-join]").forEach(
+    (b) =>
+      (b.onclick = () =>
+        change(
+          () =>
+            (doc.joinedPeriods = doc.joinedPeriods.filter(
+              (p) => p.id !== b.dataset.removeJoin,
+            )),
+        )),
+  );
+  $("#add-joined-period").onclick = () => {
+    for (const peer of doc.bars.filter((b) => b !== bar)) {
+      const start = Math.max(ordinal(bar.start), ordinal(peer.start)),
+        end = Math.min(
+          ordinal(bar.end),
+          ordinal(peer.end),
+          bar.mergeInto ? ordinal(bar.end) - bar.mergeYears : Infinity,
+          peer.mergeInto ? ordinal(peer.end) - peer.mergeYears : Infinity,
+        );
+      const occupied = (doc.joinedPeriods ?? [])
+        .filter((p) =>
+          [p.fromBarId, p.toBarId].some((id) => [bar.id, peer.id].includes(id)),
+        )
+        .sort((a, b) => ordinal(a.start) - ordinal(b.start));
+      let at = start;
+      for (const p of [
+        ...occupied,
+        { start: historical(end), end: historical(end) },
+      ]) {
+        const z = Math.min(end, ordinal(p.start));
+        if (z - at >= 1) {
+          const span = z - at;
+          const joined = {
+            id: uid(),
+            fromBarId: bar.id,
+            toBarId: peer.id,
+            start: historical(at),
+            end: historical(z),
+            transitionYears: Math.max(0.01, span / 4),
+          };
+          change(() => {
+            doc.joinedPeriods ??= [];
+            doc.joinedPeriods.push(joined);
+          });
+          return;
+        }
+        at = Math.max(at, ordinal(p.end));
+      }
+    }
+    toast(t("invalidJoinedPeriods"), true);
+  };
+}
 function renderInspector() {
   const el = $("#inspector");
   if (!doc) {
@@ -777,7 +892,9 @@ function renderInspector() {
             choices: ["top", "center", "bottom"].map((v) => [v, t(v)]),
           },
         ) +
+        researchHtml(o.research, t("dateSources")) +
         heightPeriodFields(o) +
+        joinedPeriodFields(o) +
         `<div class="field-pair">${color("background", "background", o.background)}${color("foreground", "foreground", o.foreground)}</div><div class="inspector-divider"></div>` +
         number("fadeIn", "fadeIn", o.fadeIn, 0, 2 * MAX_YEAR) +
         number("fadeOut", "fadeOut", o.fadeOut, 0, 2 * MAX_YEAR) +
@@ -1104,6 +1221,17 @@ function renderInspector() {
         }
         const candidate = { ...target, [key]: value };
         if (
+          selected?.kind === "bars" &&
+          !validJoinedPeriods({
+            ...doc,
+            bars: doc.bars.map((b) => (b === target ? candidate : b)),
+          })
+        ) {
+          toast(t("invalidJoinedPeriods"), true);
+          input.value = target[key];
+          return;
+        }
+        if (
           "start" in candidate &&
           ordinal(candidate.start) >= ordinal(candidate.end)
         ) {
@@ -1217,6 +1345,7 @@ function renderInspector() {
         doc[selected.kind].push(clone);
         selected.id = clone.id;
       });
+  if (selected?.kind === "bars") wireJoinedPeriods(o);
   if ($("#delete-element"))
     $("#delete-element").onclick = () =>
       change(() => {
@@ -1233,6 +1362,9 @@ function renderInspector() {
               }
             }
           }
+          doc.joinedPeriods = (doc.joinedPeriods ?? []).filter(
+            (p) => p.fromBarId !== id && p.toBarId !== id,
+          );
           doc.branches = (doc.branches ?? []).filter(
             (branch) => branch.fromBarId !== id && branch.toBarId !== id,
           );
@@ -1442,7 +1574,19 @@ function wireDragging() {
       return;
     }
     const object = selectedItem();
+    const svg = $("#canvas svg");
+    const at =
+      ordinal(doc.start) +
+      ((e.clientX - svg.getBoundingClientRect().left) / zoom -
+        dimensions(doc, zoom, language).left / zoom) /
+        pixelsPerYear(doc);
+    const joined =
+      kind === "bars" && !e.target.closest("[data-caption]")
+        ? joinedPeriodAt(doc, id, at)
+        : null;
     drag = {
+      movingIds: joined ? [joined.fromBarId, joined.toBarId] : [id],
+      snapshot: structuredClone(doc),
       id,
       kind,
       x: e.clientX,
@@ -1454,18 +1598,6 @@ function wireDragging() {
       eventCaption:
         kind === "events" && !!e.target.closest("[data-event-caption]"),
       eventCaptionLayout: kind === "events" ? eventCaption(doc, object) : null,
-      anchors:
-        kind === "bars"
-          ? doc.overlays
-              .filter((o) => o.anchorBarId === id)
-              .map((o) => ({ id: o.id, year: o.year }))
-          : [],
-      eventEndpoints: doc.events
-        .filter((event) => event.startBarId === id || event.endBarId === id)
-        .map((event) => ({ id: event.id, year: event.year })),
-      branchEndpoints: (doc.branches ?? [])
-        .filter((b) => b.fromBarId === id || b.toBarId === id)
-        .map((b) => structuredClone(b)),
       moved: false,
     };
     $("#canvas").setPointerCapture(e.pointerId);
@@ -1543,61 +1675,7 @@ function wireDragging() {
     )
       o.startY = Math.max(-4000, Math.min(8000, b.startY + o.y - b.y));
     if (drag.kind === "bars") {
-      let minDelta = -MAX_YEAR - ordinal(b.start),
-        maxDelta = MAX_YEAR - 1 - ordinal(b.end);
-      for (const endpoint of drag.eventEndpoints) {
-        const event = doc.events.find((event) => event.id === endpoint.id);
-        const otherIds = [event.startBarId, event.endBarId].filter(
-          (id) => id && id !== b.id,
-        );
-        for (const id of otherIds) {
-          const other = doc.bars.find((bar) => bar.id === id);
-          minDelta = Math.max(
-            minDelta,
-            ordinal(other.start) - ordinal(endpoint.year),
-          );
-          maxDelta = Math.min(
-            maxDelta,
-            ordinal(other.end) - ordinal(endpoint.year),
-          );
-        }
-      }
-      const length = ordinal(b.end) - ordinal(b.start),
-        a = Math.max(
-          -MAX_YEAR,
-          Math.min(
-            ordinal(b.start) + maxDelta,
-            ordinal(b.start) + Math.max(minDelta, offset),
-          ),
-        );
-      o.start = historical(a);
-      o.end = historical(a + length);
-      const delta = a - ordinal(b.start);
-      if (b.captionYear !== undefined)
-        o.captionYear = historical(ordinal(b.captionYear) + delta);
-      if (b.heightPeriods)
-        o.heightPeriods = b.heightPeriods.map((p) => ({
-          ...p,
-          start: historical(ordinal(p.start) + delta),
-          end: historical(ordinal(p.end) + delta),
-        }));
-      for (const anchor of drag.anchors) {
-        doc.overlays.find((o) => o.id === anchor.id).year = historical(
-          ordinal(anchor.year) + delta,
-        );
-      }
-      for (const endpoint of drag.eventEndpoints) {
-        doc.events.find((event) => event.id === endpoint.id).year = historical(
-          ordinal(endpoint.year) + delta,
-        );
-      }
-      for (const endpoint of drag.branchEndpoints) {
-        const branch = doc.branches.find((b) => b.id === endpoint.id);
-        if (endpoint.fromBarId === o.id)
-          branch.fromYear = historical(ordinal(endpoint.fromYear) + delta);
-        if (endpoint.toBarId === o.id)
-          branch.toYear = historical(ordinal(endpoint.toYear) + delta);
-      }
+      moveBars(doc, drag.snapshot, drag.movingIds, dy, offset);
     } else {
       o.year = historical(
         Math.max(-MAX_YEAR, Math.min(MAX_YEAR - 1, ordinal(b.year) + offset)),
@@ -1815,9 +1893,81 @@ function openExport() {
   );
 }
 
+async function openAI() {
+  await openAssistant({
+    api,
+    t,
+    language,
+    getDocument: () => doc,
+    apply: async (proposal) => {
+      if (doc && doc.bars.length + proposal.bars.length > 500)
+        throw new Error(t("aiTooManyBars"));
+      if (!doc && !(await newProject())) return;
+      change(() => {
+        if (!doc.bars.length) {
+          doc.title = proposal.title || doc.title;
+          doc.description = proposal.description;
+        }
+        const colors = ["#526a55", "#8d6550", "#5f6c83", "#876780", "#8a7e4f"];
+        for (const b of proposal.bars) {
+          const index = doc.bars.length;
+          const y = Math.min(
+            3940,
+            Math.max(
+              100,
+              ...doc.bars.map((b) => b.y + Math.max(b.height, 32) + 32),
+            ),
+          );
+          doc.height = Math.max(doc.height, Math.min(4000, y + 100));
+          doc.bars.push({
+            id: uid(),
+            label: b.label,
+            start: b.start,
+            end: b.end,
+            y,
+            height: 32,
+            background: colors[index % colors.length],
+            foreground: "#ffffff",
+            fadeIn: 0,
+            fadeOut: 0,
+            mergeInto: "",
+            mergeYears: 1,
+            research: {
+              model: proposal.model,
+              checkedAt: proposal.checkedAt,
+              note: b.note,
+              sources: b.sources,
+            },
+          });
+          if (ordinal(b.start) < ordinal(doc.start)) doc.start = b.start;
+          if (ordinal(b.end) > ordinal(doc.end)) doc.end = b.end;
+        }
+        // A new composition should fit the researched dates rather than the template range.
+        if (doc.bars.length === proposal.bars.length) {
+          doc.start = doc.bars.reduce(
+            (y, b) => (ordinal(b.start) < ordinal(y) ? b.start : y),
+            doc.bars[0].start,
+          );
+          doc.end = doc.bars.reduce(
+            (y, b) => (ordinal(b.end) > ordinal(y) ? b.end : y),
+            doc.bars[0].end,
+          );
+          const span = ordinal(doc.end) - ordinal(doc.start);
+          doc.mmPerYear = Math.max(1e-12, Math.min(100, 800 / span));
+        }
+        selected = { kind: "bars", id: doc.bars.at(-1).id };
+        tab = "bars";
+      });
+      fit();
+      toast(t("aiApplied"));
+    },
+  });
+}
 async function initEditor() {
   wireInspectorNavigation($("#inspector"));
   wireDragging();
+  $("#chooser-ai").onclick = action(openAI);
+  $("#ai-open").onclick = action(openAI);
   $("#new-timeline").onclick = action(newProject);
   $("#create-timeline").onclick = action(newProject);
   $("#project-select").onchange = action((e) => loadProject(e.target.value));

@@ -42,6 +42,10 @@ def init_db():
         '''CREATE TABLE IF NOT EXISTS media (
             id TEXT PRIMARY KEY, filename TEXT NOT NULL, name TEXT NOT NULL,
             width INTEGER NOT NULL, height INTEGER NOT NULL, created TEXT NOT NULL)''',
+        '''CREATE TABLE IF NOT EXISTS ai_jobs (
+            id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL,
+            response_id TEXT NOT NULL, created REAL NOT NULL,
+            result TEXT, error TEXT)''',
         '''CREATE TABLE IF NOT EXISTS login_attempts (
             address TEXT PRIMARY KEY, attempts INTEGER NOT NULL, started REAL NOT NULL)''',
     ]:

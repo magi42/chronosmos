@@ -26,6 +26,18 @@
 - Optional `labelInterval` and `minorTickInterval` are integer elapsed years;
   0 means automatic. `majorGrid` draws label-year lines behind content with
   short outward ticks at both axes. Bound tick counts and never introduce year 0.
+- Optional document `joinedPeriods` links two bars over start/end years with
+  transitionYears splines inside the period. Both bars must exist throughout;
+  joins cannot overlap on a bar or overlap its outgoing end merge. Each bar
+  contributes half its instantaneous height along a shared seam. All anchors,
+  endpoints and exports use this geometry. Dragging inside the period moves
+  both bars and their attachments; Shift also shifts their joined dates.
+- AI research is editor-only and additive, using server-side `gpt-6.1-sol`
+  Responses API with mandatory web search. Validate proposed historical years
+  and require per-bar links present in the actual search results. Review before
+  applying to unsaved drafts; no automatic save/publish. Preserve bar research
+  metadata in packages and show sources in editor/public view. Never expose
+  OPENAI_API_KEY; provision only from ignored local config over SSH stdin.
 - Optional `heightPeriods` change bar thickness smoothly between start/end years;
   targets persist and periods cannot overlap. `heightAlignment` defaults to
   center; top and bottom preserve the respective initial edge. Optional `branches`
