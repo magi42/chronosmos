@@ -26,3 +26,6 @@ test-results/
 *.db
 *.key
 *.pem
+
+# Environment-file editor backups can also contain credentials
+.env*~

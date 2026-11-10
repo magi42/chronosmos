@@ -32,6 +32,9 @@ def test_background_jobs_are_owned_additive_and_keep_key_server_side(client, aut
         calls.append((path, payload))
         if payload:
             return dict(id='resp_test',status='queued')
+        from urllib.parse import urlsplit, parse_qs
+        assert urlsplit(path).path == '/resp_test'
+        assert parse_qs(urlsplit(path).query) == {'include[]': ['web_search_call.action.sources']}
         return response()
     monkeypatch.setattr(ai,'api_request',upstream)
     doc = sample()

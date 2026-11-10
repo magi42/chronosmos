@@ -199,7 +199,8 @@ def create_app(config=None):
         if not row['response_id']:
             return jsonify(status='researching')
         try:
-            result = ai.api_request(app.config['OPENAI_API_KEY'], '/' + row['response_id'])
+            # Retrieval has its own include option; creation does not carry it forward.
+            result = ai.api_request(app.config['OPENAI_API_KEY'], '/' + row['response_id'] + '?include%5B%5D=web_search_call.action.sources')
             if result.get('status') in ('queued', 'in_progress'):
                 return jsonify(status='researching')
             value = ai.proposal(result)

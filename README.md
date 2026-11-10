@@ -252,6 +252,19 @@ It never imports the development database during application updates.
 | `CHRONOSMOS_TRUST_PROXY` | `1` only behind the configured local Apache proxy |
 | `CHRONOSMOS_HOSTS` | Comma-separated accepted hostnames |
 
+`CHRONOSMOS_SECRET_KEY` signs session cookies and binds CSRF protection to the
+session. Production deployment generates it once and preserves it on updates;
+local development generates and persists a private `instance/secret.key` when
+no environment value is supplied. To generate a value for a separate setup:
+
+```sh
+python3 -c 'import secrets; print(secrets.token_hex(32))'
+```
+
+Store that value only in private environment configuration. Keep it stable:
+changing it invalidates existing login sessions. Environment-file editor
+backups such as `.env~` are ignored too; never force-add them to Git.
+
 See [.env.example](.env.example). Flask does not automatically load it: export the
 variables or use the systemd EnvironmentFile. The application enforces CSRF tokens
 on writes, checks editor authorization server-side, rate-limits failed logins in
